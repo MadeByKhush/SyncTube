@@ -10,6 +10,9 @@ const server = http.createServer(app);
 
 // Environment variables
 const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log("SyncTube running on port", PORT);
+});
 
 // Middleware
 app.use(cors());
