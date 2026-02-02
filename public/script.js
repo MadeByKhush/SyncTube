@@ -25,10 +25,14 @@ const chatInput = document.getElementById('chat-input');
 const sendBtn = document.getElementById('send-btn');
 const connectionStatus = document.getElementById('connection-status');
 const toastContainer = document.getElementById('toast-container');
+const usernameModal = document.getElementById('username-modal');
+const usernameInput = document.getElementById('username-input');
+const startBtn = document.getElementById('start-btn');
 
 // State
 let player;
 let roomId;
+let username;
 let isRemoteUpdate = false;
 let currentVideoId = null;
 
@@ -64,12 +68,46 @@ function init() {
         window.history.replaceState({ path: newUrl }, '', newUrl);
     }
 
-    console.log(`Joining Room: ${roomId}`);
-    socket.emit('join-room', roomId);
+    console.log(`[Frontend] Init: roomId=${roomId}`);
+
+    // Check LocalStorage for Username
+    const storedName = localStorage.getItem('synctube_username');
+    if (storedName) {
+        username = storedName;
+        joinRoom();
+    } else {
+        usernameModal.classList.add('active');
+        usernameInput.focus();
+    }
+}
+
+// Modal Logic
+usernameInput.addEventListener('input', () => {
+    startBtn.disabled = usernameInput.value.trim().length === 0;
+});
+
+startBtn.addEventListener('click', () => {
+    const name = usernameInput.value.trim();
+    if (name) {
+        username = name;
+        localStorage.setItem('synctube_username', username);
+        usernameModal.classList.remove('active');
+        joinRoom();
+    }
+});
+
+usernameInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !startBtn.disabled) startBtn.click();
+});
+
+function joinRoom() {
+    console.log(`[Frontend] Joining Room: ${roomId} as ${username}`);
+    socket.emit('join-room', { roomId, username });
 }
 
 // 2. Socket Event Listeners
 socket.on('connect', () => {
+    console.log('[Frontend] Socket Connected:', socket.id);
     connectionStatus.textContent = 'Connected';
     connectionStatus.classList.add('connected');
     connectionStatus.classList.remove('connecting');
@@ -114,6 +152,7 @@ socket.on('sync-update', (data) => {
 });
 
 socket.on('new-chat', (data) => {
+    console.log('[Frontend] new-chat received:', data);
     const isMine = data.id === socket.id;
     appendMessage(data.message, isMine ? 'mine' : 'others', data.sender);
 
@@ -200,20 +239,53 @@ videoUrlInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') watchBtn.click();
 });
 
+// Chat Colors
+const userColors = new Map();
+const colors = [
+    '#F87171', // Red
+    '#FB923C', // Orange
+    '#FACC15', // Yellow
+    '#4ADE80', // Green
+    '#60A5FA', // Blue
+    '#C084FC', // Purple
+    '#F472B6'  // Pink
+];
+
+function getUserColor(username) {
+    if (!userColors.has(username)) {
+        // Simple hash or random selection ensuring no collision if possible is hard without knowing all users.
+        // We will pick random from palette based on name hash to be consistent per-session per-name.
+        let hash = 0;
+        for (let i = 0; i < username.length; i++) {
+            hash = username.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const index = Math.abs(hash) % colors.length;
+        userColors.set(username, colors[index]);
+    }
+    return userColors.get(username);
+}
+
 // Chat UI
 function appendMessage(text, type, sender) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${type}`;
 
-    // If others, show sender name (simplified)
+    const senderSpan = document.createElement('div');
+    senderSpan.className = 'sender';
+
     if (type === 'others') {
-        const senderSpan = document.createElement('div');
-        senderSpan.className = 'sender';
-        senderSpan.textContent = 'Friend';
-        msgDiv.appendChild(senderSpan);
+        senderSpan.textContent = sender || 'Anonymous';
+        senderSpan.style.color = getUserColor(sender || 'Anonymous');
+    } else {
+        senderSpan.textContent = 'You';
+        // 'You' color is handled in CSS (white/light)
     }
 
-    const textNode = document.createTextNode(text);
+    msgDiv.appendChild(senderSpan);
+
+    // Message Text
+    const textNode = document.createElement('div');
+    textNode.textContent = text;
     msgDiv.appendChild(textNode);
 
     chatMessages.appendChild(msgDiv);
@@ -227,8 +299,33 @@ chatInput.addEventListener('keypress', (e) => {
 
 function sendMessage() {
     const text = chatInput.value.trim();
+
+    // 1. Ensure Username
+    if (!username) {
+        username = localStorage.getItem('synctube_username');
+    }
+    if (!username) {
+        showToast("Please enter your name first");
+        return;
+    }
+
+    // 2. Ensure Room ID
+    if (!roomId) {
+        console.error("Chat Error: Room ID missing");
+        showToast("Error: Not connected to a room");
+        return;
+    }
+
+    // 3. Send
     if (text) {
-        socket.emit('chat-message', { roomId, message: text });
+        console.log(`Sending Chat: ${username} -> ${roomId}: ${text}`);
+        socket.emit('chat-message', {
+            roomId: roomId,
+            message: text,
+            sender: username
+        });
+
+        // 4. Clear Input ONLY after sending
         chatInput.value = '';
     }
 }
@@ -240,6 +337,168 @@ inviteBtn.addEventListener('click', () => {
     }).catch(err => {
         showToast('Failed to copy link');
     });
+});
+
+// --- Video Call Logic ---
+let localStream;
+let peerConnection;
+let isCallActive = false;
+const rtcConfig = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+    ]
+};
+
+const videoCallArea = document.getElementById('video-call-area');
+const localVideo = document.getElementById('local-video');
+const remoteVideo = document.getElementById('remote-video');
+const vcStartBtn = document.getElementById('vc-start-btn');
+const vcEndBtn = document.getElementById('vc-end-btn');
+const vcMuteBtn = document.getElementById('vc-mute-btn');
+const vcCamBtn = document.getElementById('vc-cam-btn');
+const remoteLabel = document.getElementById('remote-label');
+
+// Start Call (Initializes Local Stream & Signals Join)
+vcStartBtn.addEventListener('click', async () => {
+    if (isCallActive) return;
+    try {
+        await startLocalStream();
+        videoCallArea.classList.remove('hidden');
+        socket.emit('vc-join', roomId);
+        isCallActive = true;
+        showToast('Joined Video Call. Waiting for others...');
+    } catch (err) {
+        console.error('Error starting call:', err);
+        showToast('Could not access camera/mic');
+    }
+});
+
+async function startLocalStream() {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localVideo.srcObject = localStream;
+}
+
+// 1. Signaling: User Joined -> Create Offer
+socket.on('vc-user-joined', async ({ id, username }) => {
+    if (!isCallActive) return; // Only if I am also in VC logic
+    remoteLabel.textContent = username;
+    showToast(`${username} joined call. Connecting...`);
+    createPeerConnection(id);
+
+    // Add local tracks
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+    // Create Offer
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit('vc-offer', { offer, roomId });
+});
+
+// 2. Signaling: Receive Offer -> Create Answer
+socket.on('vc-offer', async ({ offer, id }) => {
+    if (!isCallActive) {
+        // Auto-join if someone calls? Or prompt? For now, we assume user clicked 'Start' to be "online" in VC.
+        // But requirement says "Auto-connect when second user joins VC".
+        // If I am NOT in call yet, I should probably join automatically or ignore?
+        // Let's assume both must press "Video Call" to enter the "Lobby", then they connect.
+        return;
+    }
+    createPeerConnection(id);
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+    await peerConnection.setRemoteDescription(offer);
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit('vc-answer', { answer, roomId });
+});
+
+// 3. Signaling: Receive Answer
+socket.on('vc-answer', async ({ answer }) => {
+    if (peerConnection) {
+        await peerConnection.setRemoteDescription(answer);
+    }
+});
+
+// 4. Signaling: ICE Candidate
+socket.on('vc-ice-candidate', async ({ candidate }) => {
+    if (peerConnection) {
+        await peerConnection.addIceCandidate(candidate);
+    }
+});
+
+function createPeerConnection(targetId) {
+    if (peerConnection) peerConnection.close();
+
+    peerConnection = new RTCPeerConnection(rtcConfig);
+
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('vc-ice-candidate', { candidate: event.candidate, roomId });
+        }
+    };
+
+    peerConnection.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+    };
+
+    peerConnection.onconnectionstatechange = () => {
+        if (peerConnection.connectionState === 'disconnected') {
+            remoteVideo.srcObject = null;
+        }
+    };
+}
+
+// Controls
+vcEndBtn.addEventListener('click', endCall);
+
+function endCall() {
+    isCallActive = false;
+    videoCallArea.classList.add('hidden');
+
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+    socket.emit('vc-end', roomId);
+    remoteVideo.srcObject = null;
+}
+
+socket.on('vc-end', () => {
+    showToast('Peer ended the call');
+    remoteVideo.srcObject = null;
+    if (peerConnection) peerConnection.close();
+    // Keep local stream active or close? Usually keep local until I leave.
+});
+
+// Mute / Cam
+vcMuteBtn.addEventListener('click', () => {
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        vcMuteBtn.textContent = audioTrack.enabled ? '🎤' : '🔇';
+    }
+});
+
+vcCamBtn.addEventListener('click', () => {
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        vcCamBtn.textContent = videoTrack.enabled ? '📷' : '🚫';
+    }
+});
+
+// PiP / Fullscreen Handling
+document.addEventListener('fullscreenchange', () => {
+    if (document.fullscreenElement) {
+        // Enforce PiP if call is active
+        if (isCallActive) videoCallArea.classList.add('video-pip');
+    } else {
+        videoCallArea.classList.remove('video-pip');
+    }
 });
 
 // Run Init

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,12 +11,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
 </head>
+
 <body>
     <div class="app-layout">
         <!-- Header -->
         <header class="app-header">
             <div class="logo">SyncTube</div>
-            
+
             <div class="controls">
                 <input type="text" id="video-url-input" placeholder="Paste YouTube Link..." autocomplete="off">
                 <button id="watch-btn">Watch</button>
@@ -45,15 +47,33 @@
             <aside class="chat-sidebar">
                 <div class="chat-header">
                     <h3>Chat</h3>
-                    <span id="connection-status" class="status-badge connecting">Connecting...</span>
-                </div>
-                
-                <div class="chat-messages" id="chat-messages">
-                    <!-- Messages will appear here -->
-                    <div class="system-message">Welcome to the room!</div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="vc-start-btn" class="secondary-btn" title="Start Video Call">📹</button>
+                        <span id="connection-status" class="status-badge connecting">Connecting...</span>
+                    </div>
                 </div>
 
-                <div class="chat-input-container">
+                <!-- Video Call Area (Hidden by default) -->
+                <div id="video-call-area" class="hidden">
+                    <video id="remote-video" autoplay playsinline></video>
+                    <div id="local-video-container">
+                        <video id="local-video" autoplay playsinline muted></video>
+                        <div class="vc-name-label">You</div>
+                    </div>
+                    <div class="vc-controls">
+                        <button id="vc-mute-btn" title="Mute Mic">🎤</button>
+                        <button id="vc-cam-btn" title="Toggle Camera">📷</button>
+                        <button id="vc-end-btn" title="End Call">❌</button>
+                    </div>
+                    <div id="remote-label" class="vc-name-label remote">Friend</div>
+                </div>
+
+                <div class="chat-messages" id="chat-messages">
+                    <!-- Messages will appear here -->
+                    <div class="system-message">👋 Start chatting with your friends</div>
+                </div>
+
+                <div class="chat-input-area">
                     <input type="text" id="chat-input" placeholder="Type a message..." maxlength="200">
                     <button id="send-btn">Send</button>
                 </div>
@@ -61,9 +81,20 @@
         </main>
     </div>
 
+    <!-- Username Modal -->
+    <div id="username-modal" class="modal-overlay">
+        <div class="modal">
+            <h2>SyncTube</h2>
+            <p>Enter your name to start chatting</p>
+            <input type="text" id="username-input" placeholder="Your Name" maxlength="15" autocomplete="off">
+            <button id="start-btn" disabled>Start Watching</button>
+        </div>
+    </div>
+
     <!-- Toast Notification Container -->
     <div id="toast-container"></div>
 
     <script src="script.js"></script>
 </body>
+
 </html>

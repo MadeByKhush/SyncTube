@@ -25,10 +25,12 @@ const io = new Server(server, {
 const rooms = {};
 
 io.on('connection', (socket) => {
-    // console.log('User connected:', socket.id);
+    console.log('socket connected', socket.id);
 
-    socket.on('join-room', (roomId) => {
+    socket.on('join-room', ({ roomId, username }) => {
+        console.log(`[Server] User ${username} joining room ${roomId}`);
         socket.join(roomId);
+        socket.data.username = username;
 
         // Initialize room if it doesn't exist
         if (!rooms[roomId]) {
@@ -76,11 +78,47 @@ io.on('connection', (socket) => {
     });
 
     socket.on('chat-message', ({ roomId, message, sender }) => {
+        console.log(`[Server] Chat received from ${sender} in room ${roomId}: ${message}`);
         io.to(roomId).emit('new-chat', {
-            sender, // 'You' handling will be on frontend, generic sender ID or name here
+            sender: sender || socket.data.username || "Anonymous",
             message,
             id: socket.id
         });
+    });
+
+    // --- Video Call Signaling ---
+
+    // User joins VC (Signals they are ready)
+    socket.on('vc-join', (roomId) => {
+        console.log(`[VC] User ${socket.data.username} joined VC in ${roomId}`);
+        // Notify others in room to start connection
+        socket.to(roomId).emit('vc-user-joined', {
+            id: socket.id,
+            username: socket.data.username
+        });
+    });
+
+    // WebRTC Offer
+    socket.on('vc-offer', ({ offer, roomId }) => {
+        // Broadcast to room (assuming 1-to-1 or mesh)
+        // ideally targeted to specific socket, but for 2-person room, broadcast works
+        socket.to(roomId).emit('vc-offer', { offer, id: socket.id });
+    });
+
+    // WebRTC Answer
+    socket.on('vc-answer', ({ answer, roomId }) => {
+        socket.to(roomId).emit('vc-answer', { answer, id: socket.id });
+    });
+
+    // ICE Candidate
+    socket.on('vc-ice-candidate', ({ candidate, roomId }) => {
+        socket.to(roomId).emit('vc-ice-candidate', { candidate, id: socket.id });
+    });
+
+    // End Call
+    socket.on('vc-end', (roomId) => {
+        console.log(`[VC] User ${socket.data.username} ended call`);
+        socket.to(roomId).emit('vc-end', { id: socket.id });
     });
 
     socket.on('disconnect', () => {
