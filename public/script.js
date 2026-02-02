@@ -3,6 +3,18 @@
 // This automatically connects to the host that served the page.
 const socket = io();
 
+// Sound Asset (Custom File)
+const notificationAudio = new Audio("/sounds/notification.mp3");
+notificationAudio.volume = 0.5;
+
+function playNotificationSound() {
+    notificationAudio.currentTime = 0;
+    notificationAudio.play().catch(error => {
+        // Autoplay was prevented. User needs to interact with document first.
+        // console.log("Audio autoplay prevented:", error);
+    });
+}
+
 // DOM Elements
 const videoUrlInput = document.getElementById('video-url-input');
 const watchBtn = document.getElementById('watch-btn');
@@ -102,7 +114,12 @@ socket.on('sync-update', (data) => {
 });
 
 socket.on('new-chat', (data) => {
-    appendMessage(data.message, data.id === socket.id ? 'mine' : 'others', data.sender);
+    const isMine = data.id === socket.id;
+    appendMessage(data.message, isMine ? 'mine' : 'others', data.sender);
+
+    if (!isMine) {
+        playNotificationSound();
+    }
 });
 
 // 3. YouTube Player API
