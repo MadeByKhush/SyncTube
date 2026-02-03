@@ -114,6 +114,8 @@ socket.on('connect', () => {
 });
 
 socket.on('room-state', (state) => {
+    if (state.userCount > 1) unlockVideoCall();
+
     if (state.videoId) {
         loadVideo(state.videoId);
         // If state says playing, we might auto-play, but browsers block unmuted autoplay usually.
@@ -267,30 +269,43 @@ function getUserColor(username) {
 
 // Chat UI
 function appendMessage(text, type, sender) {
+    // Message Div
     const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${type}`;
 
-    const senderSpan = document.createElement('div');
-    senderSpan.className = 'sender';
-
-    if (type === 'others') {
-        senderSpan.textContent = sender || 'Anonymous';
-        senderSpan.style.color = getUserColor(sender || 'Anonymous');
+    if (type === 'system') {
+        msgDiv.className = 'message system';
+        msgDiv.textContent = text;
+        // No sender span for system messages
     } else {
-        senderSpan.textContent = 'You';
-        // 'You' color is handled in CSS (white/light)
+        msgDiv.className = `message ${type}`;
+
+        const senderSpan = document.createElement('div');
+        senderSpan.className = 'sender';
+
+        if (type === 'others') {
+            senderSpan.textContent = sender || 'Anonymous';
+            senderSpan.style.color = getUserColor(sender || 'Anonymous');
+        } else {
+            senderSpan.textContent = 'You';
+            // 'You' color is handled in CSS (white/light)
+        }
+        msgDiv.appendChild(senderSpan);
+
+        // Message Text
+        const textNode = document.createElement('div');
+        textNode.textContent = text;
+        msgDiv.appendChild(textNode);
     }
-
-    msgDiv.appendChild(senderSpan);
-
-    // Message Text
-    const textNode = document.createElement('div');
-    textNode.textContent = text;
-    msgDiv.appendChild(textNode);
 
     chatMessages.appendChild(msgDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
+
+// System Message Listener
+socket.on('system-message', (data) => {
+    appendMessage(data.message, 'system');
+    unlockVideoCall();
+});
 
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', (e) => {
@@ -330,12 +345,56 @@ function sendMessage() {
     }
 }
 
-// Invite UI
+// --- Invite UI ---
+const inviteModal = document.getElementById('invite-modal');
+const closeInviteBtn = document.getElementById('close-invite-btn');
+const copyLinkBtn = document.getElementById('copy-link-btn');
+const inviteLinkInput = document.getElementById('invite-link-input');
+
+// Logic to reveal VC Button when others are present
+function unlockVideoCall() {
+    if (vcStartBtn.classList.contains('hidden')) {
+        vcStartBtn.classList.remove('hidden');
+        showToast("Friend detected! Video Call enabled 📹");
+    }
+}
+
+// Open Invite Modal
 inviteBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-        showToast('Link copied to clipboard!');
-    }).catch(err => {
-        showToast('Failed to copy link');
+    inviteLinkInput.value = window.location.href;
+    inviteModal.classList.add('active');
+
+    // Update Social Links
+    const url = encodeURIComponent(window.location.href);
+    const text = encodeURIComponent("Join my SyncTube watch party! 🎬");
+
+    document.getElementById('share-wa').href = `https://wa.me/?text=${text}%20${url}`;
+    document.getElementById('share-fb').href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+    document.getElementById('share-x').href = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
+    document.getElementById('share-email').href = `mailto:?subject=${text}&body=${url}`;
+});
+
+// Close Invite Modal
+closeInviteBtn.addEventListener('click', () => {
+    inviteModal.classList.remove('active');
+});
+
+inviteModal.addEventListener('click', (e) => {
+    if (e.target === inviteModal) inviteModal.classList.remove('active');
+});
+
+// Copy Link Logic
+copyLinkBtn.addEventListener('click', () => {
+    inviteLinkInput.select();
+    inviteLinkInput.setSelectionRange(0, 99999); // For mobile
+    navigator.clipboard.writeText(inviteLinkInput.value).then(() => {
+        const originalText = copyLinkBtn.textContent;
+        copyLinkBtn.textContent = 'Copied!';
+        copyLinkBtn.style.background = '#22c55e';
+        setTimeout(() => {
+            copyLinkBtn.textContent = originalText;
+            copyLinkBtn.style.background = '';
+        }, 2000);
     });
 });
 
@@ -358,19 +417,69 @@ const vcMuteBtn = document.getElementById('vc-mute-btn');
 const vcCamBtn = document.getElementById('vc-cam-btn');
 const remoteLabel = document.getElementById('remote-label');
 
-// Start Call (Initializes Local Stream & Signals Join)
-vcStartBtn.addEventListener('click', async () => {
+// Request Modal Elements
+const callRequestModal = document.getElementById('call-request-modal');
+const callerNameDisplay = document.getElementById('caller-name-display');
+const acceptCallBtn = document.getElementById('accept-call-btn');
+const rejectCallBtn = document.getElementById('reject-call-btn');
+
+let currentCallerId = null;
+
+// 1. Start Call (Sends Request)
+vcStartBtn.addEventListener('click', () => {
     if (isCallActive) return;
-    try {
-        await startLocalStream();
-        videoCallArea.classList.remove('hidden');
-        socket.emit('vc-join', roomId);
-        isCallActive = true;
-        showToast('Joined Video Call. Waiting for others...');
-    } catch (err) {
-        console.error('Error starting call:', err);
-        showToast('Could not access camera/mic');
-    }
+    // Send Request
+    socket.emit('call-user', { roomId });
+    showToast('Calling room...');
+});
+
+// 2. Incoming Call Handling
+socket.on('call-request', ({ callerId, callerName }) => {
+    if (isCallActive) return; // Busy
+    currentCallerId = callerId;
+    callerNameDisplay.textContent = callerName;
+    callRequestModal.classList.add('active');
+
+    // Play Ringtone (optional, placeholder)
+    // playRingtone();
+});
+
+// 3. Accept/Reject Logic
+acceptCallBtn.addEventListener('click', async () => {
+    callRequestModal.classList.remove('active');
+    await startLocalStream();
+
+    videoCallArea.classList.remove('hidden');
+    isCallActive = true;
+
+    socket.emit('call-accepted', { roomId, callerId: currentCallerId });
+});
+
+rejectCallBtn.addEventListener('click', () => {
+    callRequestModal.classList.remove('active');
+    socket.emit('call-rejected', { roomId, callerId: currentCallerId });
+    currentCallerId = null;
+});
+
+// 4. Response Handlers
+socket.on('call-accepted', async ({ accepterName, accepterId }) => {
+    showToast(`${accepterName} accepted call! Connecting...`);
+    await startLocalStream();
+    videoCallArea.classList.remove('hidden');
+    isCallActive = true;
+
+    // Initiator creates Offer
+    createPeerConnection(accepterId);
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit('vc-offer', { offer, roomId });
+});
+
+socket.on('call-rejected', ({ rejecterName }) => {
+    showToast(`${rejecterName} rejected the call.`);
+    // Reset state if needed
 });
 
 async function startLocalStream() {
@@ -378,31 +487,10 @@ async function startLocalStream() {
     localVideo.srcObject = localStream;
 }
 
-// 1. Signaling: User Joined -> Create Offer
-socket.on('vc-user-joined', async ({ id, username }) => {
-    if (!isCallActive) return; // Only if I am also in VC logic
-    remoteLabel.textContent = username;
-    showToast(`${username} joined call. Connecting...`);
-    createPeerConnection(id);
-
-    // Add local tracks
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-    // Create Offer
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    socket.emit('vc-offer', { offer, roomId });
-});
-
-// 2. Signaling: Receive Offer -> Create Answer
+// Signaling: Offer (Receiver Side)
 socket.on('vc-offer', async ({ offer, id }) => {
-    if (!isCallActive) {
-        // Auto-join if someone calls? Or prompt? For now, we assume user clicked 'Start' to be "online" in VC.
-        // But requirement says "Auto-connect when second user joins VC".
-        // If I am NOT in call yet, I should probably join automatically or ignore?
-        // Let's assume both must press "Video Call" to enter the "Lobby", then they connect.
-        return;
-    }
+    if (!isCallActive) return;
+
     createPeerConnection(id);
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
@@ -412,7 +500,7 @@ socket.on('vc-offer', async ({ offer, id }) => {
     socket.emit('vc-answer', { answer, roomId });
 });
 
-// 3. Signaling: Receive Answer
+// Signaling: Answer (Caller Side)
 socket.on('vc-answer', async ({ answer }) => {
     if (peerConnection) {
         await peerConnection.setRemoteDescription(answer);

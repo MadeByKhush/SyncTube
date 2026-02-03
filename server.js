@@ -43,7 +43,17 @@ io.on('connection', (socket) => {
         }
 
         // Send current state to the joining user
-        socket.emit('room-state', rooms[roomId]);
+        const userCount = io.sockets.adapter.rooms.get(roomId)?.size || 0;
+        socket.emit('room-state', {
+            ...rooms[roomId],
+            userCount
+        });
+
+        // Broadcast System Message: User Joined
+        socket.to(roomId).emit('system-message', {
+            type: 'system',
+            message: `${username} joined your party 🎉`
+        });
     });
 
     socket.on('change-video', ({ roomId, videoId }) => {
@@ -86,36 +96,53 @@ io.on('connection', (socket) => {
         });
     });
 
-    // --- Video Call Signaling ---
+    // --- Video Call Signaling (1-to-1 Request Handshake) ---
 
-    // User joins VC (Signals they are ready)
-    socket.on('vc-join', (roomId) => {
-        console.log(`[VC] User ${socket.data.username} joined VC in ${roomId}`);
-        // Notify others in room to start connection
-        socket.to(roomId).emit('vc-user-joined', {
-            id: socket.id,
-            username: socket.data.username
+    // 1. Caller initiates Call Request
+    socket.on('call-user', ({ roomId }) => {
+        // Broadcast "Incoming Call" to room (except sender)
+        // In a real app with >2 users, you'd target a specific socketId. 
+        // For SyncTube MVP (assumed small groups), we broadcast to room.
+        console.log(`[VC] Call Request from ${socket.data.username}`);
+        socket.to(roomId).emit('call-request', {
+            callerId: socket.id,
+            callerName: socket.data.username
         });
     });
 
-    // WebRTC Offer
+    // 2. Callee Accepts Call
+    socket.on('call-accepted', ({ roomId, callerId }) => {
+        console.log(`[VC] Call Accepted by ${socket.data.username}`);
+
+        // Notify the Caller to start WebRTC
+        io.to(callerId).emit('call-accepted', {
+            accepterId: socket.id,
+            accepterName: socket.data.username
+        });
+    });
+
+    // 3. Callee Rejects Call
+    socket.on('call-rejected', ({ roomId, callerId }) => {
+        console.log(`[VC] Call Rejected by ${socket.data.username}`);
+        io.to(callerId).emit('call-rejected', {
+            rejecterName: socket.data.username
+        });
+    });
+
+    // 4. WebRTC Signaling (Offer, Answer, ICE)
     socket.on('vc-offer', ({ offer, roomId }) => {
-        // Broadcast to room (assuming 1-to-1 or mesh)
-        // ideally targeted to specific socket, but for 2-person room, broadcast works
         socket.to(roomId).emit('vc-offer', { offer, id: socket.id });
     });
 
-    // WebRTC Answer
     socket.on('vc-answer', ({ answer, roomId }) => {
         socket.to(roomId).emit('vc-answer', { answer, id: socket.id });
     });
 
-    // ICE Candidate
     socket.on('vc-ice-candidate', ({ candidate, roomId }) => {
         socket.to(roomId).emit('vc-ice-candidate', { candidate, id: socket.id });
     });
 
-    // End Call
+    // 5. End Call
     socket.on('vc-end', (roomId) => {
         console.log(`[VC] User ${socket.data.username} ended call`);
         socket.to(roomId).emit('vc-end', { id: socket.id });
@@ -123,7 +150,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         // console.log('User disconnected:', socket.id);
-        // Clean up empty rooms logic could go here, but omitted for simplicity
+        // If in call, could trigger auto-hangup if we tracked state server-side
     });
 });
 
