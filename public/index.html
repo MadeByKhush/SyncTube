@@ -35,8 +35,9 @@
             <div class="header-right">
                 <span id="connection-status" class="status-pill connected">Stable Connection</span>
                 <!-- Invite Button -->
-                <button id="invite-btn" class="btn-primary-soft">
-                    <span class="icon">✨</span> Invite
+                <!-- Invite Button -->
+                <button id="invite-btn" class="button">
+                    Invite
                 </button>
             </div>
         </header>
@@ -125,24 +126,43 @@
     <!-- Modals (Preserved Logic) -->
 
     <!-- Invite Modal -->
+    <!-- Invite Modal -->
     <div id="invite-modal" class="modal-overlay">
-        <div class="modal-card">
-            <h2>Invite Friends</h2>
-            <p>Share the room link to watch together</p>
-
-            <div class="social-share-grid">
-                <a href="#" class="social-btn whatsapp" id="share-wa" target="_blank">💬</a>
-                <a href="#" class="social-btn facebook" id="share-fb" target="_blank">📘</a>
-                <a href="#" class="social-btn x-twitter" id="share-x" target="_blank">✖️</a>
-                <a href="#" class="social-btn email" id="share-email">📧</a>
+        <div class="invite-premium-card">
+            <div class="invite-header">
+                <h2>Invite Friends</h2>
+                <p>Share the room link to watch together</p>
             </div>
 
-            <div class="link-copy-area">
-                <input type="text" id="invite-link-input" readonly>
-                <button id="copy-link-btn">Copy</button>
+            <div class="social-grid-premium">
+                <div class="social-item">
+                    <a href="#" class="social-circle" id="share-wa" target="_blank">💬</a>
+                    <span>WhatsApp</span>
+                </div>
+                <div class="social-item">
+                    <a href="#" class="social-circle" id="share-x" target="_blank">✖️</a>
+                    <span>Twitter</span>
+                </div>
+                <div class="social-item">
+                    <a href="#" class="social-circle" id="share-fb" target="_blank">📘</a>
+                    <span>Facebook</span>
+                </div>
+                <div class="social-item">
+                    <a href="#" class="social-circle" id="share-email">📧</a>
+                    <span>Email</span>
+                </div>
             </div>
 
-            <button class="close-modal-btn" id="close-invite-btn">Close</button>
+            <div class="link-section">
+                <label>Room Link</label>
+                <div class="link-pill">
+                    <span class="link-icon">🔗</span>
+                    <input type="text" id="invite-link-input" readonly>
+                    <button id="copy-link-btn">Copy</button>
+                </div>
+            </div>
+
+            <button id="close-invite-btn" class="close-text-btn">Close</button>
         </div>
     </div>
 
@@ -164,11 +184,21 @@
 
     <!-- Username Modal -->
     <div id="username-modal" class="modal-overlay active">
-        <div class="modal-card">
-            <h2>Identity</h2>
-            <p>Who are you today?</p>
-            <input type="text" id="username-input" placeholder="Enter alias..." maxlength="15" autocomplete="off">
-            <button id="start-btn" disabled>Enter Room</button>
+        <div class="identity-card">
+            <div class="card-header">
+                <div class="logo-icon-lg">✨</div>
+                <h1>Welcome to SyncTube</h1>
+                <p>Choose a name to join your friends</p>
+            </div>
+
+            <div class="input-group-lg">
+                <input type="text" id="username-input" placeholder="Enter your display name" maxlength="15"
+                    autocomplete="off">
+            </div>
+
+            <button id="start-btn" class="btn-gradient-lg" disabled>Continue &rarr;</button>
+
+            <p class="card-footer-text">Join your friends for a synchronized watch party.</p>
         </div>
     </div>
 

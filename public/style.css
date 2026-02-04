@@ -158,13 +158,13 @@ body {
     border-radius: 99px;
     font-weight: 600;
     cursor: pointer;
-    color: var(--primary);
+    color: #7d2ae8;
     box-shadow: var(--shadow-sm);
     transition: all 0.2s;
 }
 
 #watch-btn:hover {
-    background: var(--primary);
+    background: #7d2ae8;
     color: white;
 }
 
@@ -500,7 +500,7 @@ iframe {
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: var(--primary);
+    background: #7d2ae8;
     color: white;
     border: none;
     cursor: pointer;
@@ -593,6 +593,7 @@ iframe {
     margin-bottom: 24px;
 }
 
+/* Copy Link Input */
 .link-copy-area input {
     flex: 1;
     background: transparent;
@@ -601,6 +602,115 @@ iframe {
     color: var(--text-muted);
     outline: none;
 }
+
+/* --- Identity Modal Polish (Startup Aesthetic) --- */
+.identity-card {
+    background: white;
+    border-radius: 28px;
+    padding: 40px 32px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    animation: cardFloat 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cardFloat {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.card-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, #111827 0%, #4b5563 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.card-header p {
+    color: var(--text-muted);
+    font-size: 1rem;
+    margin: 0;
+}
+
+.logo-icon-lg {
+    font-size: 2.5rem;
+    margin-bottom: 16px;
+    display: inline-block;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
+
+/* Input Styling */
+.input-group-lg input {
+    width: 100%;
+    padding: 16px 24px;
+    border-radius: 99px;
+    border: 2px solid #f3f4f6;
+    background: #f9fafb;
+    font-size: 1.1rem;
+    text-align: center;
+    outline: none;
+    transition: all 0.2s;
+    color: var(--text-main);
+}
+
+.input-group-lg input:focus {
+    background: white;
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+}
+
+/* Gradient Button */
+.btn-gradient-lg {
+    width: 100%;
+    padding: 16px;
+    border-radius: 99px;
+    border: none;
+    background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 15px -3px rgba(236, 72, 153, 0.3);
+}
+
+.btn-gradient-lg:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 20px 25px -5px rgba(236, 72, 153, 0.4);
+}
+
+.btn-gradient-lg:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.btn-gradient-lg:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #e5e7eb;
+    color: #9ca3af;
+    box-shadow: none;
+}
+
+.card-footer-text {
+    font-size: 0.85rem;
+    color: #9ca3af;
+    margin: 0;
+}
+
+
 
 #copy-link-btn {
     background: white;
@@ -926,4 +1036,241 @@ iframe {
 
 .hidden {
     display: none !important;
+}
+
+/* --- Bubble Invite Button (User Requested) --- */
+.button {
+    position: relative;
+    padding: 10px 22px;
+    border-radius: 6px;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    background-color: #7d2ae8;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    font-weight: 600;
+    overflow: visible;
+    z-index: 1;
+}
+
+.button:active {
+    transform: scale(0.96);
+}
+
+.button:before,
+.button:after {
+    position: absolute;
+    content: "";
+    width: 150%;
+    left: 50%;
+    height: 100%;
+    transform: translateX(-50%);
+    z-index: -1000;
+    background-repeat: no-repeat;
+}
+
+.button:hover:before {
+    top: -70%;
+    background-image: radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, transparent 20%, #7d2ae8 20%, transparent 30%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, transparent 10%, #7d2ae8 15%, transparent 20%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%);
+    background-size: 10% 10%, 20% 20%, 15% 15%, 20% 20%, 18% 18%, 10% 10%, 15% 15%,
+        10% 10%, 18% 18%;
+    background-position: 50% 120%;
+    animation: greentopBubbles 0.6s ease;
+}
+
+@keyframes greentopBubbles {
+    0% {
+        background-position: 5% 90%, 10% 90%, 10% 90%, 15% 90%, 25% 90%, 25% 90%,
+            40% 90%, 55% 90%, 70% 90%;
+    }
+
+    50% {
+        background-position: 0% 80%, 0% 20%, 10% 40%, 20% 0%, 30% 30%, 22% 50%,
+            50% 50%, 65% 20%, 90% 30%;
+    }
+
+    100% {
+        background-position: 0% 70%, 0% 10%, 10% 30%, 20% -10%, 30% 20%, 22% 40%,
+            50% 40%, 65% 10%, 90% 20%;
+        background-size: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+    }
+}
+
+.button:hover::after {
+    bottom: -70%;
+    background-image: radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, transparent 10%, #7d2ae8 15%, transparent 20%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%),
+        radial-gradient(circle, #7d2ae8 20%, transparent 20%);
+    background-size: 15% 15%, 20% 20%, 18% 18%, 20% 20%, 15% 15%, 20% 20%, 18% 18%;
+    background-position: 50% 0%;
+    animation: greenbottomBubbles 0.6s ease;
+}
+
+@keyframes greenbottomBubbles {
+    0% {
+        background-position: 10% -10%, 30% 10%, 55% -10%, 70% -10%, 85% -10%,
+            70% -10%, 70% 0%;
+    }
+
+    50% {
+        background-position: 0% 80%, 20% 80%, 45% 60%, 60% 100%, 75% 70%, 95% 60%,
+            105% 0%;
+    }
+
+    100% {
+        background-position: 0% 90%, 20% 90%, 45% 70%, 60% 110%, 75% 80%, 95% 70%,
+            110% 10%;
+        background-size: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+    }
+}
+
+/* --- Premium Invite UI (Reference Match) --- */
+.invite-premium-card {
+    background: white;
+    border-radius: 24px;
+    padding: 32px;
+    width: 90%;
+    max-width: 440px;
+    text-align: left;
+    /* Left align header */
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.invite-header h2 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #111827;
+    margin-bottom: 4px;
+}
+
+.invite-header p {
+    color: #8b5cf6;
+    /* Light purple text like reference "Share the room link..." */
+    font-size: 0.95rem;
+    margin-bottom: 32px;
+}
+
+/* Social Icons */
+.social-grid-premium {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 32px;
+}
+
+.social-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.social-circle {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #f3e8ff;
+    /* Lightest purple */
+    color: #7d2ae8;
+    /* Dark purple */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-size: 1.5rem;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.social-circle:hover {
+    background: #e9d5ff;
+    transform: translateY(-2px);
+}
+
+.social-item span {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #374151;
+}
+
+/* Room Link Section */
+.link-section label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 8px;
+}
+
+.link-pill {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 99px;
+    /* Pill shape */
+    padding: 4px 6px 4px 16px;
+    /* Space for button on right */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.link-icon {
+    color: #6b7280;
+    font-size: 1rem;
+}
+
+#invite-link-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 0.9rem;
+    color: #4b5563;
+    outline: none;
+    width: 100%;
+    /* Ensure text fits */
+    padding: 8px 0;
+}
+
+#copy-link-btn {
+    background: #7d2ae8;
+    color: white;
+    border: none;
+    padding: 8px 24px;
+    border-radius: 99px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#copy-link-btn:hover {
+    background: #6d28d9;
+}
+
+/* Close Button (Text) */
+.close-text-btn {
+    background: transparent;
+    border: none;
+    color: #6b7280;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    margin: 24px auto 0 auto;
+    display: block;
+    transition: color 0.2s;
+}
+
+.close-text-btn:hover {
+    color: #111827;
 }
