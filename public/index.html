@@ -15,96 +15,95 @@
 <body>
     <div class="app-container">
 
-        <!-- 1. Glass Header (Top Bar) -->
-        <header class="glass-header">
-            <div class="logo-area">
-                <span class="logo-icon">✨</span>
-                <span class="logo-text">SyncTube</span>
-            </div>
-
-            <div class="url-control-wrapper">
-                <div class="url-input-group">
-                    <input type="text" id="video-url-input" placeholder="Paste YouTube Link..." autocomplete="off">
-                    <button id="watch-btn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
-                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                        </svg>
-                        Play
-                    </button>
+        <!-- 1. Light Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo-area">
+                    <span class="logo-icon">▶</span>
+                    <span class="logo-text">SyncTube</span>
                 </div>
             </div>
 
-            <div class="header-actions">
-                <span id="connection-status" class="status-badge connecting">Connecting...</span>
-                <!-- Invite Button Moved Here -->
-                <button id="invite-btn" class="header-invite-btn">
-                    <span class="icon">📩</span> Invite
+            <!-- Title / URL centered or balanced -->
+            <div class="url-control-wrapper">
+                <div class="url-input-group">
+                    <input type="text" id="video-url-input" placeholder="Paste YouTube Link..." autocomplete="off">
+                    <button id="watch-btn">Play</button>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <span id="connection-status" class="status-pill connected">Stable Connection</span>
+                <!-- Invite Button -->
+                <button id="invite-btn" class="btn-primary-soft">
+                    <span class="icon">✨</span> Invite
                 </button>
             </div>
         </header>
 
-        <!-- Main Layout Grid -->
-        <main class="main-grid">
+        <!-- Main Layout (2 Columns) -->
+        <main class="app-body">
 
-            <!-- 2. Main Stage (Video) -->
-            <section class="main-stage">
-                <div class="video-card-container">
+            <!-- Column 1: Video Stage -->
+            <section class="video-column">
+                <div class="video-card">
+
+                    <!-- Main YouTube Player -->
                     <div id="player"></div>
-                    <!-- Overlay for empty state -->
+
+                    <!-- Empty State Overlay -->
                     <div id="placeholder-overlay" class="active">
                         <div class="placeholder-content">
-                            <div class="pulse-icon">▶</div>
-                            <h1>Ready to Sync?</h1>
-                            <p>Paste a YouTube link above to start the party.</p>
+                            <div class="play-circle">▶</div>
+                            <h1>Ready to watch?</h1>
+                            <p>Paste a link above to sync.</p>
                         </div>
                     </div>
+
+                    <!-- Video Call Picture-in-Picture (Absolute Positioned) -->
+                    <div id="video-call-area" class="pip-card hidden">
+                        <div class="video-grid">
+                            <!-- Remote Video (Big in PiP) -->
+                            <video id="remote-video" autoplay playsinline></video>
+
+                            <!-- Local Video (Small overlay in PiP) -->
+                            <div id="local-video-container">
+                                <video id="local-video" autoplay playsinline muted></video>
+                            </div>
+
+                            <!-- Controls Overlay (Hover) -->
+                            <div class="vc-overlay-controls">
+                                <button id="vc-mute-btn" class="control-btn" title="Toggle Mic">🎤</button>
+                                <button id="vc-cam-btn" class="control-btn" title="Toggle Cam">📷</button>
+                                <button id="vc-end-btn" class="control-btn btn-danger" title="Leave">❌</button>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
-                <div class="room-info">
-                    <div class="live-dot"></div>
-                    <span>LIVE SYNC ACTIVE</span>
+
+                <div class="video-meta">
+                    <div class="meta-left">
+                        <h2 id="video-title">Now Playing</h2>
+                        <div class="meta-stats">
+                            <span id="viewer-count">👁 1 watching</span>
+                            <span class="dot">•</span>
+                            <span id="session-timer">🕒 Started just now</span>
+                        </div>
+                    </div>
                 </div>
             </section>
 
-            <!-- 3. Social Zone (Chat + Video) -->
-            <aside class="social-zone">
-
-                <!-- Video Call Card -->
-                <div id="video-call-area" class="social-card video-call-card hidden">
-                    <div class="card-header">
-                        <span>Friend Cam</span>
-                        <div class="live-badge">LIVE</div>
-                    </div>
-                    <div class="video-grid">
-                        <video id="remote-video" autoplay playsinline></video>
-                        <div id="remote-label" class="video-label remote">Friend</div>
-
-                        <div id="local-video-container">
-                            <video id="local-video" autoplay playsinline muted></video>
-                            <div class="video-label local">You</div>
-                        </div>
-
-                        <!-- Video Call Controls Overlay (Moved from Dock) -->
-                        <div class="vc-overlay-controls">
-                            <button id="vc-mute-btn" class="overlay-btn" title="Toggle Mic">
-                                <span class="icon">🎤</span>
-                            </button>
-                            <button id="vc-cam-btn" class="overlay-btn" title="Toggle Cam">
-                                <span class="icon">📷</span>
-                            </button>
-                            <button id="vc-end-btn" class="overlay-btn btn-danger" title="Leave Call">
-                                <span class="icon">❌</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Chat Card -->
-                <div class="social-card chat-card">
+            <!-- Column 2: Chat Panel -->
+            <aside class="chat-column">
+                <div class="chat-card">
                     <div class="chat-header">
-                        <h3>Room Chat</h3>
-                        <!-- Video Call Start Button Moved Here (Hidden by Default) -->
-                        <button id="vc-start-btn" class="chat-header-vc-btn hidden" title="Start Video Call">
+                        <div class="chat-title">
+                            <h3>Live Chat</h3>
+                            <span class="badge-live">LIVE</span>
+                        </div>
+                        <!-- Video Call Start Button (Contextual) -->
+                        <button id="vc-start-btn" class="icon-btn-ghost hidden" title="Start Video Call">
                             📹
                         </button>
                     </div>
@@ -114,43 +113,28 @@
                     </div>
 
                     <div class="chat-input-area">
-                        <input type="text" id="chat-input" placeholder="Say something..." maxlength="200">
-                        <button id="send-btn">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <line x1="22" y1="2" x2="11" y2="13"></line>
-                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                            </svg>
-                        </button>
+                        <input type="text" id="chat-input" placeholder="Type a message..." maxlength="200">
+                        <button id="send-btn" class="btn-circle-primary">➤</button>
                     </div>
                 </div>
             </aside>
         </main>
 
-        <!-- Removed Control Dock Container -->
-
     </div>
+
+    <!-- Modals (Preserved Logic) -->
 
     <!-- Invite Modal -->
     <div id="invite-modal" class="modal-overlay">
         <div class="modal-card">
-            <div class="modal-glow"></div>
             <h2>Invite Friends</h2>
             <p>Share the room link to watch together</p>
 
             <div class="social-share-grid">
-                <a href="#" class="social-btn whatsapp" id="share-wa" target="_blank" title="WhatsApp">
-                    <span class="icon">💬</span>
-                </a>
-                <a href="#" class="social-btn facebook" id="share-fb" target="_blank" title="Facebook">
-                    <span class="icon">📘</span>
-                </a>
-                <a href="#" class="social-btn x-twitter" id="share-x" target="_blank" title="X (Twitter)">
-                    <span class="icon">✖️</span>
-                </a>
-                <a href="#" class="social-btn email" id="share-email" title="Email">
-                    <span class="icon">📧</span>
-                </a>
+                <a href="#" class="social-btn whatsapp" id="share-wa" target="_blank">💬</a>
+                <a href="#" class="social-btn facebook" id="share-fb" target="_blank">📘</a>
+                <a href="#" class="social-btn x-twitter" id="share-x" target="_blank">✖️</a>
+                <a href="#" class="social-btn email" id="share-email">📧</a>
             </div>
 
             <div class="link-copy-area">
@@ -164,19 +148,16 @@
 
     <!-- Call Request Modal -->
     <div id="call-request-modal" class="modal-overlay">
-        <div class="modal-card">
-            <div class="modal-glow"></div>
+        <div class="modal-card ring-card">
             <div class="pulse-ring"></div>
-            <h2>Incoming Call...</h2>
-            <p id="caller-name-display" class="caller-name">Friend</p>
+            <!-- Avatar placeholder -->
+            <div class="caller-avatar">👤</div>
+            <h2 id="caller-name-display">Friend</h2>
+            <p>is calling you...</p>
 
             <div class="call-actions">
-                <button id="reject-call-btn" class="action-btn reject">
-                    <span class="icon">📞</span>
-                </button>
-                <button id="accept-call-btn" class="action-btn accept">
-                    <span class="icon">📹</span>
-                </button>
+                <button id="reject-call-btn" class="action-btn reject">📞</button>
+                <button id="accept-call-btn" class="action-btn accept">📹</button>
             </div>
         </div>
     </div>
@@ -184,7 +165,6 @@
     <!-- Username Modal -->
     <div id="username-modal" class="modal-overlay active">
         <div class="modal-card">
-            <div class="modal-glow"></div>
             <h2>Identity</h2>
             <p>Who are you today?</p>
             <input type="text" id="username-input" placeholder="Enter alias..." maxlength="15" autocomplete="off">

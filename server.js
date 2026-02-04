@@ -27,10 +27,17 @@ const rooms = {};
 io.on('connection', (socket) => {
     console.log('socket connected', socket.id);
 
+    // Helper: Broadcast User Count
+    const broadcastUserCount = (roomId) => {
+        const count = io.sockets.adapter.rooms.get(roomId)?.size || 0;
+        io.to(roomId).emit('update-user-count', { count });
+    };
+
     socket.on('join-room', ({ roomId, username }) => {
         console.log(`[Server] User ${username} joining room ${roomId}`);
         socket.join(roomId);
         socket.data.username = username;
+        socket.data.roomId = roomId; // Store room ID for disconnect handling
 
         // Initialize room if it doesn't exist
         if (!rooms[roomId]) {
@@ -38,7 +45,8 @@ io.on('connection', (socket) => {
                 videoId: null,
                 isPlaying: false,
                 timestamp: 0,
-                lastUpdate: Date.now()
+                lastUpdate: Date.now(),
+                sessionStartTime: Date.now() // Track when room started
             };
         }
 
@@ -54,6 +62,24 @@ io.on('connection', (socket) => {
             type: 'system',
             message: `${username} joined your party 🎉`
         });
+
+        // Update User Count
+        broadcastUserCount(roomId);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('socket disconnected', socket.id);
+        const roomId = socket.data.roomId;
+        if (roomId) {
+            broadcastUserCount(roomId);
+
+            // Clean up room if empty to reset session timer for next group
+            const count = io.sockets.adapter.rooms.get(roomId)?.size || 0;
+            if (count === 0) {
+                console.log(`[Server] Room ${roomId} empty. Deleting session.`);
+                delete rooms[roomId];
+            }
+        }
     });
 
     socket.on('change-video', ({ roomId, videoId }) => {

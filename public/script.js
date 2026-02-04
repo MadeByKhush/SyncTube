@@ -113,15 +113,59 @@ socket.on('connect', () => {
     connectionStatus.classList.remove('connecting');
 });
 
+// Session Timer State
+let sessionStartTime = null;
+
 socket.on('room-state', (state) => {
     if (state.userCount > 1) unlockVideoCall();
+    updateViewerCount(state.userCount); // Initial set
+
+    // Set Session Start Time
+    if (state.sessionStartTime) {
+        sessionStartTime = state.sessionStartTime;
+        updateSessionTimer();
+    }
 
     if (state.videoId) {
         loadVideo(state.videoId);
-        // If state says playing, we might auto-play, but browsers block unmuted autoplay usually.
-        // We'll sync state once player is ready.
     }
 });
+
+socket.on('update-user-count', ({ count }) => {
+    updateViewerCount(count);
+    if (count > 1) unlockVideoCall();
+});
+
+// Helper: Update Viewer DOM
+function updateViewerCount(count) {
+    const el = document.getElementById('viewer-count');
+    if (el) {
+        el.innerText = `👁 ${count} watching`;
+    }
+}
+
+// Session Timer Logic
+function updateSessionTimer() {
+    if (!sessionStartTime) return;
+
+    const diff = Date.now() - sessionStartTime;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+
+    const el = document.getElementById('session-timer');
+    if (!el) return;
+
+    if (minutes < 1) {
+        el.innerText = "🕒 Started just now";
+    } else if (hours < 1) {
+        el.innerText = `🕒 Started ${minutes} minutes ago`;
+    } else {
+        el.innerText = `🕒 Started ${hours} hours ago`;
+    }
+}
+
+// Update timer every minute
+setInterval(updateSessionTimer, 60000);
 
 socket.on('update-video', (data) => {
     loadVideo(data.videoId);
@@ -194,6 +238,11 @@ function onPlayerReady(event) {
 }
 
 function onPlayerStateChange(event) {
+    // Dynamic Title Update
+    if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.UNSTARTED || event.data === YT.PlayerState.CUED) {
+        updateVideoTitle();
+    }
+
     if (isRemoteUpdate) return;
 
     // YT.PlayerState.PLAYING = 1
@@ -342,6 +391,19 @@ function sendMessage() {
 
         // 4. Clear Input ONLY after sending
         chatInput.value = '';
+    }
+}
+
+// Helper: Update Video Title
+function updateVideoTitle() {
+    if (!player || !player.getVideoData) return;
+
+    const data = player.getVideoData();
+    const title = data && data.title ? data.title.trim() : "";
+    const titleElement = document.getElementById("video-title");
+
+    if (titleElement) {
+        titleElement.innerText = title.length ? title : "Now Playing";
     }
 }
 
