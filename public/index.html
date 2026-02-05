@@ -49,36 +49,97 @@
             <section class="video-column">
                 <div class="video-card">
 
-                    <!-- Main YouTube Player -->
-                    <div id="player"></div>
+                    <div id="video-player-wrapper">
+                        <!-- Main YouTube Player -->
+                        <div id="player"></div>
 
-                    <!-- Empty State Overlay -->
-                    <div id="placeholder-overlay" class="active">
-                        <div class="placeholder-content">
-                            <div class="play-circle">▶</div>
-                            <h1>Ready to watch?</h1>
-                            <p>Paste a link above to sync.</p>
-                        </div>
-                    </div>
+                        <!-- Click Shield for Custom Interaction -->
+                        <div class="click-shield" id="click-shield"></div>
 
-                    <!-- Video Call Picture-in-Picture (Absolute Positioned) -->
-                    <div id="video-call-area" class="pip-card hidden">
-                        <div class="video-grid">
-                            <!-- Remote Video (Big in PiP) -->
-                            <video id="remote-video" autoplay playsinline></video>
-
-                            <!-- Local Video (Small overlay in PiP) -->
-                            <div id="local-video-container">
-                                <video id="local-video" autoplay playsinline muted></video>
+                        <!-- Custom Controls Overlay -->
+                        <div id="custom-controls" class="custom-controls">
+                            <!-- Progress Bar -->
+                            <div class="progress-area">
+                                <div class="seek-bar-container">
+                                    <div class="buffer-bar" id="buffer-bar"></div>
+                                    <div class="progress-fill" id="progress-fill"></div>
+                                    <input type="range" id="seek-slider" min="0" max="100" value="0" step="0.1">
+                                </div>
                             </div>
 
-                            <!-- Controls Overlay (Hover) -->
-                            <div class="vc-overlay-controls">
-                                <button id="vc-mute-btn" class="control-btn" title="Toggle Mic">🎤</button>
-                                <button id="vc-cam-btn" class="control-btn" title="Toggle Cam">📷</button>
-                                <button id="vc-end-btn" class="control-btn btn-danger" title="Leave">❌</button>
+                            <div class="controls-toolbar">
+                                <div class="controls-left">
+                                    <!-- Play/Pause -->
+                                    <button id="play-pause-btn" class="control-icon-btn" title="Play/Pause">
+                                        <svg class="icon-play" viewBox="0 0 24 24">
+                                            <path fill="currentColor" d="M8 5v14l11-7z" />
+                                        </svg>
+                                        <svg class="icon-pause hidden" viewBox="0 0 24 24">
+                                            <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                                        </svg>
+                                    </button>
+
+                                    <!-- Volume -->
+                                    <div class="volume-container">
+                                        <button id="mute-btn" class="control-icon-btn" title="Mute">
+                                            <svg class="icon-vol-high" viewBox="0 0 24 24">
+                                                <path fill="currentColor"
+                                                    d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                                            </svg>
+                                            <svg class="icon-vol-muted hidden" viewBox="0 0 24 24">
+                                                <path fill="currentColor"
+                                                    d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73 4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+                                            </svg>
+                                        </button>
+                                        <div class="volume-slider-wrapper">
+                                            <input type="range" id="volume-slider" min="0" max="100" value="100">
+                                            <div class="volume-fill" id="volume-fill"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Time -->
+                                    <div class="time-display">
+                                        <span id="current-time">0:00</span><span class="separator">/</span><span
+                                            id="total-duration">0:00</span>
+                                    </div>
+                                </div>
+
+                                <div class="controls-right">
+                                    <!-- Quality -->
+                                    <div class="quality-menu-container">
+                                        <button id="quality-btn" class="control-text-btn" title="Settings">HD</button>
+                                        <div id="quality-menu" class="quality-menu hidden">
+                                            <!-- Dynamically populated -->
+                                        </div>
+                                    </div>
+
+                                    <!-- Fullscreen -->
+                                    <button id="fullscreen-btn" class="control-icon-btn" title="Fullscreen">
+                                        <svg class="icon-maximize" viewBox="0 0 24 24">
+                                            <path fill="currentColor"
+                                                d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+                                        </svg>
+                                        <svg class="icon-minimize hidden" viewBox="0 0 24 24">
+                                            <path fill="currentColor"
+                                                d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                         </div>
+
+                        <!-- Empty State Overlay (Moved inside wrapper) -->
+                        <div id="placeholder-overlay" class="active">
+                            <div class="placeholder-content">
+                                <div class="play-circle">▶</div>
+                                <h1>Ready to watch?</h1>
+                                <p>Paste a link above to sync.</p>
+                            </div>
+                        </div>
+
+                        <!-- Video Call Picture-in-Picture (Moved inside wrapper) -->
+
+
                     </div>
 
                 </div>
@@ -87,6 +148,7 @@
                     <div class="meta-left">
                         <h2 id="video-title">Lets Watch together</h2>
                         <div class="meta-stats">
+
                             <span id="viewer-count">👁 1 watching</span>
                             <span class="dot">•</span>
                             <span id="session-timer">🕒 Started just now</span>
@@ -168,16 +230,54 @@
 
     <!-- Call Request Modal -->
     <div id="call-request-modal" class="modal-overlay">
-        <div class="modal-card ring-card">
-            <div class="pulse-ring"></div>
-            <!-- Avatar placeholder -->
-            <div class="caller-avatar">👤</div>
-            <h2 id="caller-name-display">Friend</h2>
-            <p>is calling you...</p>
+        <!-- New Call Card Design -->
+        <div class="call-card">
+            <!-- Avatar Section -->
+            <div class="call-avatar-block">
+                <div class="call-avatar-main">
+                    <!-- Generic User Icon -->
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </div>
+                <!-- Call Type Badge (Video) -->
+                <div class="call-type-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M23 7l-7 5 7 5V7z" />
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                    </svg>
+                </div>
+            </div>
 
-            <div class="call-actions">
-                <button id="reject-call-btn" class="action-btn reject">📞</button>
-                <button id="accept-call-btn" class="action-btn accept">📹</button>
+            <div class="call-info">
+                <h2 id="caller-name-display" class="caller-name">Friend</h2>
+                <p class="call-status-text">is calling you...</p>
+            </div>
+
+            <div class="call-actions-row">
+                <!-- Decline -->
+                <div class="action-item">
+                    <button id="reject-call-btn" class="action-circle-btn reject-btn">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />
+                        </svg>
+                    </button>
+                    <span class="action-label">DECLINE</span>
+                </div>
+
+                <!-- Accept -->
+                <div class="action-item">
+                    <button id="accept-call-btn" class="action-circle-btn accept-btn">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                        </svg>
+                    </button>
+                    <span class="action-label">ACCEPT</span>
+                </div>
             </div>
         </div>
     </div>
@@ -204,6 +304,26 @@
 
     <!-- Toast Container -->
     <div id="toast-container"></div>
+
+    <!-- Video Call Picture-in-Picture (Global Fixed) -->
+    <div id="video-call-area" class="pip-card hidden">
+        <div class="video-grid">
+            <!-- Remote Video (Big in PiP) -->
+            <video id="remote-video" autoplay playsinline></video>
+
+            <!-- Local Video (Small overlay in PiP) -->
+            <div id="local-video-container">
+                <video id="local-video" autoplay playsinline muted></video>
+            </div>
+
+            <!-- Controls Overlay (Hover) -->
+            <div class="vc-overlay-controls">
+                <button id="vc-mute-btn" class="control-btn" title="Toggle Mic">🎤</button>
+                <button id="vc-cam-btn" class="control-btn" title="Toggle Cam">📷</button>
+                <button id="vc-end-btn" class="control-btn btn-danger" title="Leave">❌</button>
+            </div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>
