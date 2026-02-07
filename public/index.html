@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="/socket.io/socket.io.js"></script>
 </head>
 
@@ -105,13 +106,6 @@
                                 </div>
 
                                 <div class="controls-right">
-                                    <!-- Quality -->
-                                    <div class="quality-menu-container">
-                                        <button id="quality-btn" class="control-text-btn" title="Settings">HD</button>
-                                        <div id="quality-menu" class="quality-menu hidden">
-                                            <!-- Dynamically populated -->
-                                        </div>
-                                    </div>
 
                                     <!-- Fullscreen -->
                                     <button id="fullscreen-btn" class="control-icon-btn" title="Fullscreen">
@@ -136,6 +130,7 @@
                                 <p>Paste a link above to sync.</p>
                             </div>
                         </div>
+
 
                         <!-- Video Call Picture-in-Picture (Moved inside wrapper) -->
 
@@ -167,7 +162,7 @@
                         </div>
                         <!-- Video Call Start Button (Contextual) -->
                         <button id="vc-start-btn" class="icon-btn-ghost hidden" title="Start Video Call">
-                            📹
+                            <i data-lucide="video" style="width: 18px; height: 18px;"></i>
                         </button>
                     </div>
 
@@ -185,9 +180,6 @@
 
     </div>
 
-    <!-- Modals (Preserved Logic) -->
-
-    <!-- Invite Modal -->
     <!-- Invite Modal -->
     <div id="invite-modal" class="modal-overlay">
         <div class="invite-premium-card">
@@ -198,19 +190,27 @@
 
             <div class="social-grid-premium">
                 <div class="social-item">
-                    <a href="#" class="social-circle" id="share-wa" target="_blank">💬</a>
+                    <a href="#" class="social-circle" id="share-wa" target="_blank" aria-label="Share on WhatsApp">
+                        <i data-lucide="message-circle" style="width: 20px; height: 20px;"></i>
+                    </a>
                     <span>WhatsApp</span>
                 </div>
                 <div class="social-item">
-                    <a href="#" class="social-circle" id="share-x" target="_blank">✖️</a>
+                    <a href="#" class="social-circle" id="share-x" target="_blank" aria-label="Share on X">
+                        <i data-lucide="twitter" style="width: 20px; height: 20px;"></i>
+                    </a>
                     <span>Twitter</span>
                 </div>
                 <div class="social-item">
-                    <a href="#" class="social-circle" id="share-fb" target="_blank">📘</a>
+                    <a href="#" class="social-circle" id="share-fb" target="_blank" aria-label="Share on Facebook">
+                        <i data-lucide="facebook" style="width: 20px; height: 20px;"></i>
+                    </a>
                     <span>Facebook</span>
                 </div>
                 <div class="social-item">
-                    <a href="#" class="social-circle" id="share-email">📧</a>
+                    <a href="#" class="social-circle" id="share-email" aria-label="Share via Email">
+                        <i data-lucide="mail" style="width: 20px; height: 20px;"></i>
+                    </a>
                     <span>Email</span>
                 </div>
             </div>
@@ -218,7 +218,7 @@
             <div class="link-section">
                 <label>Room Link</label>
                 <div class="link-pill">
-                    <span class="link-icon">🔗</span>
+                    <span class="link-icon"><i data-lucide="link" style="width: 16px; height: 16px;"></i></span>
                     <input type="text" id="invite-link-input" readonly>
                     <button id="copy-link-btn">Copy</button>
                 </div>
@@ -244,10 +244,7 @@
                 </div>
                 <!-- Call Type Badge (Video) -->
                 <div class="call-type-badge">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M23 7l-7 5 7 5V7z" />
-                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                    </svg>
+                    <i data-lucide="video" style="width: 14px; height: 14px;"></i>
                 </div>
             </div>
 
@@ -260,10 +257,7 @@
                 <!-- Decline -->
                 <div class="action-item">
                     <button id="reject-call-btn" class="action-circle-btn reject-btn">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                            <path
-                                d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />
-                        </svg>
+                        <i data-lucide="phone-off" style="width: 22px; height: 22px; stroke-width: 2.5;"></i>
                     </button>
                     <span class="action-label">DECLINE</span>
                 </div>
@@ -271,10 +265,7 @@
                 <!-- Accept -->
                 <div class="action-item">
                     <button id="accept-call-btn" class="action-circle-btn accept-btn">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                            <path
-                                d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
-                        </svg>
+                        <i data-lucide="video" style="width: 22px; height: 22px; stroke-width: 2.5;"></i>
                     </button>
                     <span class="action-label">ACCEPT</span>
                 </div>
@@ -318,14 +309,28 @@
 
             <!-- Controls Overlay (Hover) -->
             <div class="vc-overlay-controls">
-                <button id="vc-mute-btn" class="control-btn" title="Toggle Mic">🎤</button>
-                <button id="vc-cam-btn" class="control-btn" title="Toggle Cam">📷</button>
-                <button id="vc-end-btn" class="control-btn btn-danger" title="Leave">❌</button>
+                <button id="vc-mute-btn" class="control-btn" title="Toggle Mic">
+                    <i data-lucide="mic" style="width: 18px; height: 18px;"></i>
+                </button>
+                <button id="vc-cam-btn" class="control-btn" title="Toggle Cam">
+                    <i data-lucide="video" style="width: 18px; height: 18px;"></i>
+                </button>
+                <button id="vc-end-btn" class="control-btn btn-danger" title="Leave">
+                    <i data-lucide="phone-off" style="width: 18px; height: 18px;"></i>
+                </button>
             </div>
         </div>
     </div>
 
     <script src="script.js"></script>
+    <script>
+        // Initialize Lucide icons after DOM loads
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+    </script>
 </body>
 
 </html>

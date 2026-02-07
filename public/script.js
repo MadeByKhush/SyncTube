@@ -1,9 +1,14 @@
 // Socket Connection
 const socket = io();
 
-// Sound Asset
+// Sound Assets
 const notificationAudio = new Audio("/sounds/notification.mp3");
 notificationAudio.volume = 0.5;
+
+// Call Ringtone
+const callRingtone = new Audio("/sounds/ringtone.mp3");
+callRingtone.loop = true;
+callRingtone.volume = 1.0;
 
 function playNotificationSound() {
     notificationAudio.currentTime = 0;
@@ -54,9 +59,6 @@ const iconVolMuted = muteBtn.querySelector('.icon-vol-muted');
 const volumeSlider = document.getElementById('volume-slider');
 const volumeFill = document.getElementById('volume-fill'); // Optional if used in CSS
 
-const qualityBtn = document.getElementById('quality-btn');
-const qualityMenu = document.getElementById('quality-menu');
-
 const fullscreenBtn = document.getElementById('fullscreen-btn');
 const iconMaximize = fullscreenBtn.querySelector('.icon-maximize');
 const iconMinimize = fullscreenBtn.querySelector('.icon-minimize');
@@ -70,6 +72,30 @@ const vcEndBtn = document.getElementById('vc-end-btn');
 const vcMuteBtn = document.getElementById('vc-mute-btn');
 const vcCamBtn = document.getElementById('vc-cam-btn');
 
+// VC State Management
+let isMicEnabled = true;
+let isCameraEnabled = true;
+
+// Room User Count (for VC gating)
+let roomUserCount = 1;
+
+// VC Visibility Control (gated to exactly 2 users)
+function updateVCVisibility() {
+    if (roomUserCount === 2) {
+        vcStartBtn.classList.remove('hidden');
+    } else {
+        vcStartBtn.classList.add('hidden');
+        // If call active and user count changed from 2, end the call
+        if (isCallActive) {
+            showToast('VC ended: Room must have exactly 2 users');
+            endCall();
+        }
+    }
+}
+
+function unlockVideoCall() {
+    updateVCVisibility();
+}
 
 // --- State ---
 let player;
@@ -172,6 +198,8 @@ let sessionStartTime = null;
 socket.on('room-state', (state) => {
     if (state.userCount > 1) unlockVideoCall();
     if (viewerCountEl) viewerCountEl.innerText = `👁 ${state.userCount} watching`;
+    roomUserCount = state.userCount || 1;
+    updateVCVisibility();
 
     if (state.sessionStartTime) {
         sessionStartTime = state.sessionStartTime;
@@ -185,7 +213,8 @@ socket.on('room-state', (state) => {
 
 socket.on('update-user-count', ({ count }) => {
     if (viewerCountEl) viewerCountEl.innerText = `👁 ${count} watching`;
-    if (count > 1) unlockVideoCall();
+    roomUserCount = count;
+    updateVCVisibility();
 });
 
 function updateSessionTimer() {
@@ -265,8 +294,7 @@ function onYouTubeIframeAPIReady() {
         },
         events: {
             'onReady': onPlayerReady,
-            'onStateChange': onPlayerStateChange,
-            'onPlaybackQualityChange': onQualityChange
+            'onStateChange': onPlayerStateChange
         }
     });
 }
@@ -277,7 +305,6 @@ function onPlayerReady(event) {
     }
     // Start UI Loop
     requestAnimationFrame(animationLoop);
-    updateQualityMenu();
 }
 
 function onPlayerStateChange(event) {
@@ -306,9 +333,7 @@ function onPlayerStateChange(event) {
     }
 }
 
-function onQualityChange(event) {
-    updateQualityMenu(); // Re-render if options changed
-}
+
 
 function emitSync(isPlaying) {
     socket.emit('sync-action', {
@@ -449,67 +474,7 @@ function updateVolumeIcon(vol) {
 }
 
 
-// 4. Quality Selector
-function updateQualityMenu() {
-    if (!player || !player.getAvailableQualityLevels) return;
 
-    const levels = player.getAvailableQualityLevels();
-    // Clear menu
-    qualityMenu.innerHTML = '';
-
-    if (!levels || levels.length === 0) {
-        const item = document.createElement('button');
-        item.className = 'quality-option';
-        item.innerText = 'Auto';
-        qualityMenu.appendChild(item);
-        return;
-    }
-
-    const currentQuality = player.getPlaybackQuality();
-
-    levels.forEach(level => {
-        const btn = document.createElement('button');
-        btn.className = 'quality-option';
-        btn.innerText = formatQualityLabel(level);
-        if (level === currentQuality) btn.classList.add('active');
-
-        btn.onclick = () => {
-            player.setPlaybackQualityRange(level);
-            // also try legacy
-            player.setPlaybackQuality(level);
-            qualityMenu.classList.add('hidden');
-            showToast(`Quality set to ${formatQualityLabel(level)}`);
-        };
-        qualityMenu.appendChild(btn);
-    });
-}
-
-function formatQualityLabel(level) {
-    if (level === 'highres') return '4K';
-    if (level === 'hd2160') return '4K';
-    if (level === 'hd1440') return '1440p';
-    if (level === 'hd1080') return '1080p';
-    if (level === 'hd720') return '720p';
-    if (level === 'large') return '480p';
-    if (level === 'medium') return '360p';
-    if (level === 'small') return '240p';
-    if (level === 'tiny') return '144p';
-    if (level === 'auto') return 'Auto';
-    return level;
-}
-
-qualityBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    qualityMenu.classList.toggle('hidden');
-    updateQualityMenu();
-});
-
-// Close menu when clicking elsewhere
-document.addEventListener('click', (e) => {
-    if (!qualityBtn.contains(e.target) && !qualityMenu.contains(e.target)) {
-        qualityMenu.classList.add('hidden');
-    }
-});
 
 
 // 5. Fullscreen (Wrapper based)
@@ -572,10 +537,9 @@ function showControls() {
 
 function hideControls() {
     if (!player) return;
-    // Don't hide if paused or if dragging or if menu open
+    // Don't hide if paused or if dragging
     if (player.getPlayerState() === YT.PlayerState.PAUSED) return;
     if (isDragging) return;
-    if (!qualityMenu.classList.contains('hidden')) return;
 
     customControls.classList.add('hidden-idle');
     videoWrapper.style.cursor = 'none';
@@ -740,6 +704,11 @@ let currentCallerId = null;
 
 vcStartBtn.addEventListener('click', () => {
     if (isCallActive) return;
+    // Guard: Only allow VC with exactly 2 users
+    if (roomUserCount !== 2) {
+        showToast('VC requires exactly 2 users in room');
+        return;
+    }
     socket.emit('call-user', { roomId });
     showToast('Calling room...');
 });
@@ -749,9 +718,17 @@ socket.on('call-request', ({ callerId, callerName }) => {
     currentCallerId = callerId;
     callerNameDisplay.textContent = callerName;
     callRequestModal.classList.add('active');
+
+    // Play ringtone for incoming call
+    callRingtone.currentTime = 0;
+    callRingtone.play().catch(err => console.log('Ringtone autoplay blocked:', err));
 });
 
 acceptCallBtn.addEventListener('click', async () => {
+    // Stop ringtone
+    callRingtone.pause();
+    callRingtone.currentTime = 0;
+
     callRequestModal.classList.remove('active');
     await startLocalStream();
     videoCallArea.classList.remove('hidden');
@@ -760,6 +737,10 @@ acceptCallBtn.addEventListener('click', async () => {
 });
 
 rejectCallBtn.addEventListener('click', () => {
+    // Stop ringtone
+    callRingtone.pause();
+    callRingtone.currentTime = 0;
+
     callRequestModal.classList.remove('active');
     socket.emit('call-rejected', { roomId, callerId: currentCallerId });
     currentCallerId = null;
@@ -784,6 +765,12 @@ socket.on('call-rejected', ({ rejecterName }) => {
 async function startLocalStream() {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     localVideo.srcObject = localStream;
+
+    // Initialize VC state and icons
+    isMicEnabled = true;
+    isCameraEnabled = true;
+    updateMicIcon();
+    updateCameraIcon();
 }
 
 socket.on('vc-offer', async ({ offer, id }) => {
@@ -833,19 +820,100 @@ function endCall() {
     }
     socket.emit('vc-end', roomId);
     remoteVideo.srcObject = null;
+    localVideo.srcObject = null;
+
+    // Stop ringtone (safety cleanup)
+    callRingtone.pause();
+    callRingtone.currentTime = 0;
+
+    // Reset VC state
+    isMicEnabled = true;
+    isCameraEnabled = true;
+    currentCallerId = null;
 }
 
 socket.on('vc-end', () => {
+    // Guard: prevent duplicate cleanup
+    if (!isCallActive && !callRequestModal.classList.contains('active')) {
+        // Already cleaned up, just stop ringtone
+        callRingtone.pause();
+        callRingtone.currentTime = 0;
+        return;
+    }
+
     showToast('Peer ended the call');
+
+    // Hide call request modal if still showing (caller cancelled)
+    callRequestModal.classList.remove('active');
+
+    // Mark call as inactive
+    isCallActive = false;
+
+    // Hide VC frame
+    videoCallArea.classList.add('hidden');
+
+    // Stop local media tracks
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+
+    // Close peer connection
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+
+    // Clear video elements
     remoteVideo.srcObject = null;
-    if (peerConnection) peerConnection.close();
+    localVideo.srcObject = null;
+
+    // Stop ringtone
+    callRingtone.pause();
+    callRingtone.currentTime = 0;
+
+    // Reset VC state
+    isMicEnabled = true;
+    isCameraEnabled = true;
+    currentCallerId = null;
 });
 
+// VC Icon Update Functions
+function updateMicIcon() {
+    const icon = vcMuteBtn.querySelector('i');
+    if (icon) {
+        icon.setAttribute('data-lucide', isMicEnabled ? 'mic' : 'mic-off');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+    // Optional: Add visual state class
+    if (isMicEnabled) {
+        vcMuteBtn.classList.remove('disabled-state');
+    } else {
+        vcMuteBtn.classList.add('disabled-state');
+    }
+}
+
+function updateCameraIcon() {
+    const icon = vcCamBtn.querySelector('i');
+    if (icon) {
+        icon.setAttribute('data-lucide', isCameraEnabled ? 'video' : 'video-off');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+    // Optional: Add visual state class
+    if (isCameraEnabled) {
+        vcCamBtn.classList.remove('disabled-state');
+    } else {
+        vcCamBtn.classList.add('disabled-state');
+    }
+}
+
+// VC Control Event Handlers
 vcMuteBtn.addEventListener('click', () => {
     const audioTrack = localStream.getAudioTracks()[0];
     if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
-        vcMuteBtn.textContent = audioTrack.enabled ? '🎤' : '🔇';
+        isMicEnabled = audioTrack.enabled;
+        updateMicIcon();
     }
 });
 
@@ -853,7 +921,8 @@ vcCamBtn.addEventListener('click', () => {
     const videoTrack = localStream.getVideoTracks()[0];
     if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
-        vcCamBtn.textContent = videoTrack.enabled ? '📷' : '🚫';
+        isCameraEnabled = videoTrack.enabled;
+        updateCameraIcon();
     }
 });
 

@@ -487,49 +487,6 @@ iframe {
     opacity: 0.5;
 }
 
-/* Quality Menu */
-.quality-menu-container {
-    position: relative;
-}
-
-.quality-menu {
-    position: absolute;
-    bottom: 50px;
-    right: 0;
-    background: rgba(20, 20, 20, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 8px 0;
-    min-width: 140px;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    display: flex;
-    flex-direction: column;
-    z-index: 100;
-}
-
-.quality-option {
-    background: transparent;
-    border: none;
-    color: #e5e7eb;
-    padding: 10px 16px;
-    text-align: left;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background 0.2s;
-    width: 100%;
-}
-
-.quality-option:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.quality-option.active {
-    color: #8b5cf6;
-    font-weight: 700;
-    background: rgba(139, 92, 246, 0.1);
-}
-
 /* Fullscreen Logic */
 #video-player-wrapper:fullscreen {
     width: 100vw;
@@ -665,6 +622,14 @@ iframe {
     background: rgba(239, 68, 68, 0.2);
 }
 
+.control-btn.disabled-state {
+    opacity: 0.5;
+    color: #9ca3af;
+}
+
+.control-btn.disabled-state:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
 
 /* --- Chat Panel --- */
 .chat-column {
@@ -1673,3 +1638,38 @@ iframe {
 
 /* --- Custom Player Overlay --- */
 /* (Redundant styles removed) */
+
+/* Quality Switching Overlay */
+#quality-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+    /* Above iframe, below controls */
+    color: white;
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+}
+
+#quality-overlay .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
