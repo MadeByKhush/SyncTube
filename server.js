@@ -5,6 +5,83 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+// ============================================================
+// SAFE HARDENING: Lenient Validation + Soft Rate Limiting
+// Philosophy: Log & Ignore bad events, NEVER break normal users
+// ============================================================
+
+// --- Lenient Validation (Shape & Type only, no hard failures) ---
+const MAX_USERNAME = 24;
+const MAX_CHAT = 300;
+const MAX_ROOM_ID = 32;
+
+function isOk(val, type) {
+    return val !== undefined && val !== null && typeof val === type;
+}
+
+function validateJoin(data) {
+    if (!isOk(data?.roomId, 'string') || data.roomId.length > MAX_ROOM_ID) return false;
+    if (!isOk(data?.username, 'string') || data.username.length > MAX_USERNAME) return false;
+    return true;
+}
+
+function validateChat(data) {
+    if (!isOk(data?.roomId, 'string')) return false;
+    if (!isOk(data?.message, 'string') || data.message.length === 0 || data.message.length > MAX_CHAT) return false;
+    return true;
+}
+
+function validateSync(data) {
+    if (!isOk(data?.roomId, 'string')) return false;
+    if (!isOk(data?.timestamp, 'number') || data.timestamp < 0) return false;
+    if (typeof data?.isPlaying !== 'boolean') return false;
+    return true;
+}
+
+function validateVideo(data) {
+    if (!isOk(data?.roomId, 'string')) return false;
+    if (!isOk(data?.videoId, 'string') || data.videoId.length < 5) return false;
+    return true;
+}
+
+// --- Chat Sanitization (Escape HTML, prevent XSS) ---
+function sanitize(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// --- Soft Rate Limiter (Ignore excess, never disconnect) ---
+const rateLimits = new Map();
+
+function softRateLimit(socketId, event, maxPerSec) {
+    const key = `${socketId}:${event}`;
+    const now = Date.now();
+    const entry = rateLimits.get(key);
+
+    if (!entry || now > entry.reset) {
+        rateLimits.set(key, { count: 1, reset: now + 1000 });
+        return true; // Allowed
+    }
+    if (entry.count < maxPerSec) {
+        entry.count++;
+        return true; // Allowed
+    }
+    return false; // Exceeded - will be ignored (not blocked)
+}
+
+function cleanupRateLimits(socketId) {
+    for (const key of rateLimits.keys()) {
+        if (key.startsWith(socketId)) rateLimits.delete(key);
+    }
+}
+
+// --- Room & User Caps ---
+const MAX_ROOMS = 1000;
+const MAX_USERS_PER_ROOM = 50;
+
+// --- Stats (for /health endpoint) ---
+let stats = { rateLimitIgnored: 0, invalidIgnored: 0, roomsCreated: 0 };
+
 const app = express();
 const server = http.createServer(app);
 
@@ -33,57 +110,91 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('update-user-count', { count });
     };
 
-    socket.on('join-room', ({ roomId, username }) => {
+    socket.on('join-room', (data) => {
+        // Soft validation - ignore invalid, log only
+        if (!validateJoin(data)) {
+            stats.invalidIgnored++;
+            console.log(`[Ignored] Invalid join-room from ${socket.id}`);
+            return;
+        }
+        const { roomId, username } = data;
+
+        // Room cap check - only for NEW rooms
+        const isNewRoom = !rooms[roomId];
+        if (isNewRoom && Object.keys(rooms).length >= MAX_ROOMS) {
+            console.log(`[Limit] MAX_ROOMS reached, ignoring new room`);
+            return socket.emit('error', { message: 'Server busy, try later.' });
+        }
+
+        // User cap check
+        const currentUsers = io.sockets.adapter.rooms.get(roomId)?.size || 0;
+        if (currentUsers >= MAX_USERS_PER_ROOM) {
+            console.log(`[Limit] Room ${roomId} full`);
+            return socket.emit('error', { message: 'Room is full.' });
+        }
+
+        // === ORIGINAL LOGIC (unchanged) ===
         console.log(`[Server] User ${username} joining room ${roomId}`);
         socket.join(roomId);
         socket.data.username = username;
-        socket.data.roomId = roomId; // Store room ID for disconnect handling
+        socket.data.roomId = roomId;
 
-        // Initialize room if it doesn't exist
         if (!rooms[roomId]) {
             rooms[roomId] = {
                 videoId: null,
                 isPlaying: false,
                 timestamp: 0,
                 lastUpdate: Date.now(),
-                sessionStartTime: Date.now() // Track when room started
+                sessionStartTime: Date.now(),
+                hostSocketId: socket.id // Track host for video control
             };
+            stats.roomsCreated++;
         }
 
-        // Send current state to the joining user
         const userCount = io.sockets.adapter.rooms.get(roomId)?.size || 0;
         socket.emit('room-state', {
             ...rooms[roomId],
             userCount
         });
 
-        // Broadcast System Message: User Joined
         socket.to(roomId).emit('system-message', {
             type: 'system',
-            message: `${username} joined your party 🎉`
+            message: `${sanitize(username)} joined your party 🎉`
         });
 
-        // Update User Count
         broadcastUserCount(roomId);
     });
 
     socket.on('disconnect', () => {
         console.log('socket disconnected', socket.id);
+        cleanupRateLimits(socket.id); // Cleanup rate limiter
+
         const roomId = socket.data.roomId;
-        if (roomId) {
+        if (roomId && rooms[roomId]) {
             broadcastUserCount(roomId);
 
-            // Clean up room if empty to reset session timer for next group
+            // Clean up room if empty
             const count = io.sockets.adapter.rooms.get(roomId)?.size || 0;
             if (count === 0) {
-                console.log(`[Server] Room ${roomId} empty. Deleting session.`);
+                console.log(`[Server] Room ${roomId} empty. Deleting.`);
                 delete rooms[roomId];
             }
         }
     });
 
-    socket.on('change-video', ({ roomId, videoId }) => {
+    socket.on('change-video', (data) => {
+        if (!validateVideo(data)) {
+            stats.invalidIgnored++;
+            return;
+        }
+        const { roomId, videoId } = data;
         if (!rooms[roomId]) return;
+
+        // Host-only check for video changes (friendly mode)
+        if (rooms[roomId].hostSocketId && rooms[roomId].hostSocketId !== socket.id) {
+            console.log(`[Blocked] Non-host tried to change video`);
+            return socket.emit('error', { message: 'Only host can change video.' });
+        }
 
         rooms[roomId].videoId = videoId;
         rooms[roomId].isPlaying = true;
@@ -97,27 +208,53 @@ io.on('connection', (socket) => {
         });
     });
 
-    socket.on('sync-action', ({ roomId, type, timestamp, isPlaying }) => {
+    socket.on('sync-action', (data) => {
+        if (!validateSync(data)) {
+            stats.invalidIgnored++;
+            return;
+        }
+        const { roomId, type, timestamp, isPlaying } = data;
         if (!rooms[roomId]) return;
 
-        // Update room state
+        // Soft rate limit: 3 sync events per second (prevents griefing)
+        if (!softRateLimit(socket.id, 'sync', 3)) {
+            stats.rateLimitIgnored++;
+            return; // Silently ignore, don't block
+        }
+
         rooms[roomId].isPlaying = isPlaying;
         rooms[roomId].timestamp = timestamp;
         rooms[roomId].lastUpdate = Date.now();
 
-        // Broadcast to everyone ELSE in the room
         socket.to(roomId).emit('sync-update', {
-            type, // 'play', 'pause', 'seek'
+            type,
             timestamp,
             isPlaying
         });
     });
 
-    socket.on('chat-message', ({ roomId, message, sender }) => {
-        console.log(`[Server] Chat received from ${sender} in room ${roomId}: ${message}`);
+    socket.on('chat-message', (data) => {
+        if (!validateChat(data)) {
+            stats.invalidIgnored++;
+            return;
+        }
+        const { roomId, message, sender } = data;
+        if (!rooms[roomId]) return;
+
+        // Soft rate limit: 2 chat messages per second
+        if (!softRateLimit(socket.id, 'chat', 2)) {
+            stats.rateLimitIgnored++;
+            return; // Silently ignore
+        }
+
+        // CRITICAL: Sanitize all user input to prevent XSS
+        const safeSender = sanitize(sender || socket.data.username || 'Anonymous');
+        const safeMessage = sanitize(message);
+
+        console.log(`[Server] Chat from ${safeSender}: ${safeMessage.substring(0, 50)}...`);
         io.to(roomId).emit('new-chat', {
-            sender: sender || socket.data.username || "Anonymous",
-            message,
+            sender: safeSender,
+            message: safeMessage,
             id: socket.id
         });
     });
@@ -180,7 +317,21 @@ io.on('connection', (socket) => {
     });
 });
 
+// ============================================================
+// OBSERVABILITY: Health Check Endpoint
+// ============================================================
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        uptime: Math.floor(process.uptime()),
+        activeRooms: Object.keys(rooms).length,
+        activeSockets: io.engine?.clientsCount || 0,
+        stats: stats
+    });
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`[Hardening] Safe mode: Validation ✓ | Rate Limits ✓ | Sanitization ✓ | Host-only video ✓`);
 });
