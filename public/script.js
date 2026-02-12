@@ -180,6 +180,17 @@ async function init() {
 
     // Step 8: Join Flow Sequence Fix (Auth -> Profile -> Socket -> Join)
     console.log("[Auth] Checking initial session...");
+
+    // UI: Show Loader instantly (modal is hidden by default in CSS, but we can force it active if needed)
+    // Actually, let's make sure the modal is ACTIVE to show the loader.
+    const authLoader = document.getElementById('auth-loader');
+    const googleBtn = document.getElementById('google-login-btn');
+
+    // Show modal + loader, hide button
+    usernameModal.classList.add('active');
+    authLoader.classList.remove('hidden');
+    googleBtn.classList.add('hidden');
+
     const { data: { session } } = await supabase.auth.getSession();
     console.log("[Auth] Initial session:", session);
 
@@ -192,16 +203,20 @@ async function init() {
 
     if (session) {
         console.log("[Auth] Session found, handling user...");
+        // Loader stays visible until handleUserSession finishes
         handleUserSession(session);
     } else if (isOAuthRedirect) {
         console.log("[Auth] OAuth redirect detected, waiting for session...");
+        // Loader stays visible. Set timeout to switch to button if it hangs
         authTimeout = setTimeout(() => {
-            console.warn("[Auth] Timeout waiting for session. Showing modal.");
-            usernameModal.classList.add('active');
+            console.warn("[Auth] Timeout waiting for session. Showing login button.");
+            authLoader.classList.add('hidden');
+            googleBtn.classList.remove('hidden');
         }, 5000);
     } else {
-        console.log("[Auth] No session found, showing modal...");
-        usernameModal.classList.add('active');
+        console.log("[Auth] No session found, showing login button...");
+        authLoader.classList.add('hidden');
+        googleBtn.classList.remove('hidden');
     }
 
     // Listen for auth changes
@@ -211,9 +226,7 @@ async function init() {
         if (authTimeout) clearTimeout(authTimeout); // Cancel timeout if event fires
 
         if (event === 'SIGNED_IN' && session) {
-            if (usernameModal.classList.contains('active')) {
-                usernameModal.classList.remove('active');
-            }
+            // Logic handled by handleUserSession (which closes modal)
             handleUserSession(session);
         } else if (event === 'SIGNED_OUT') {
             window.location.reload();
@@ -259,6 +272,7 @@ async function handleUserSession(session) {
     }
 
     usernameModal.classList.remove('active');
+    updateProfileUI(user);
 }
 
 const googleLoginBtn = document.getElementById('google-login-btn');
@@ -1111,3 +1125,92 @@ makeDraggable(videoCallArea);
 
 // Run Init
 init();
+
+// --- Profile UI Logic ---
+
+const profileBtn = document.getElementById('profile-btn');
+const profileMenu = document.getElementById('profile-menu-container');
+const profileDropdown = document.getElementById('profile-dropdown');
+const logoutBtn = document.getElementById('logout-btn');
+const saveNameBtn = document.getElementById('save-name-btn');
+const profileNameInput = document.getElementById('profile-name-input');
+const dropdownName = document.getElementById('dropdown-name');
+const dropdownEmail = document.getElementById('dropdown-email');
+
+function updateProfileUI(user) {
+    if (!profileMenu) return;
+
+    // Show container
+    profileMenu.classList.remove('hidden');
+
+    // Update Avatar
+    const avatarUrl = user.user_metadata.avatar_url;
+    if (avatarUrl) {
+        profileBtn.innerHTML = `<img src='${avatarUrl}' class='profile-avatar' alt='Profile'>`;
+    } else {
+        const initials = ((username || user.email) || 'User').substring(0, 2).toUpperCase();
+        profileBtn.innerHTML = `<div class='profile-initials'>${initials}</div>`;
+    }
+
+    // Update Dropdown Info
+    if (dropdownName) dropdownName.textContent = username || 'User';
+    if (dropdownEmail) dropdownEmail.textContent = user.email;
+    if (profileNameInput) profileNameInput.value = username || '';
+}
+
+// Toggle Dropdown
+if (profileBtn) {
+    profileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        profileDropdown.classList.toggle('hidden');
+    });
+}
+
+// Close Dropdown on Outside Click
+document.addEventListener('click', (e) => {
+    if (profileDropdown && !profileDropdown.classList.contains('hidden')) {
+        // Check if click is outside menu container
+        if (!profileMenu.contains(e.target)) {
+            profileDropdown.classList.add('hidden');
+        }
+    }
+});
+
+// Logout
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        window.location.reload();
+    });
+}
+
+// Change Name
+if (saveNameBtn) {
+    saveNameBtn.addEventListener('click', async () => {
+        const newName = profileNameInput.value.trim();
+        if (!newName) return;
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ display_name: newName })
+                .eq('id', user.id);
+
+            if (updateError) throw updateError;
+
+            // Update Local State
+            username = newName;
+            dropdownName.textContent = newName;
+            showToast('Name updated!');
+            profileDropdown.classList.add('hidden');
+
+        } catch (err) {
+            console.error('Name update failed:', err);
+            showToast('Failed to update name');
+        }
+    });
+}
+
