@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 // ============================================================
@@ -21,7 +22,7 @@ function isOk(val, type) {
 
 function validateJoin(data) {
     if (!isOk(data?.roomId, 'string') || data.roomId.length > MAX_ROOM_ID) return false;
-    if (!isOk(data?.username, 'string') || data.username.length > MAX_USERNAME) return false;
+    // Username is verified via Auth Middleware now
     return true;
 }
 
@@ -89,16 +90,45 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Supabase Setup
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 // Socket.io Setup
 const io = new Server(server, {
     cors: {
-        origin: "*", // Allow all origins for simplicity in MVP, restrict in prod if needed
+        origin: "*",
         methods: ["GET", "POST"]
     }
 });
 
+// Step 6: Backend Auth Verification
+io.use(async (socket, next) => {
+    const token = socket.handshake.auth.token;
+
+    if (!token) {
+        return next(new Error('Authentication error: Token missing'));
+    }
+
+    try {
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+
+        if (error || !user) {
+            console.log(`[Auth] Verification failed for socket ${socket.id}:`, error?.message);
+            return next(new Error('Authentication error: Invalid token'));
+        }
+
+        socket.data.user = user;
+        console.log(`[Auth] Verified user: ${user.email}`);
+        next();
+    } catch (err) {
+        console.error("[Auth] Unexpected error:", err);
+        next(new Error('Internal Server Error during Auth'));
+    }
+});
+
 // In-memory Room State
-// Structure: { roomId: { videoId: string | null, isPlaying: boolean, timestamp: number, lastUpdate: number } }
 const rooms = {};
 
 io.on('connection', (socket) => {
@@ -117,7 +147,12 @@ io.on('connection', (socket) => {
             console.log(`[Ignored] Invalid join-room from ${socket.id}`);
             return;
         }
-        const { roomId, username } = data;
+        const { roomId } = data;
+
+        // Step 7: Identity Source Switch
+        // Securely retrieve username from Auth Middleware
+        const user = socket.data.user;
+        const username = user.user_metadata.full_name || user.user_metadata.name || user.email.split('@')[0];
 
         // Room cap check - only for NEW rooms
         const isNewRoom = !rooms[roomId];
@@ -133,10 +168,10 @@ io.on('connection', (socket) => {
             return socket.emit('error', { message: 'Room is full.' });
         }
 
-        // === ORIGINAL LOGIC (unchanged) ===
+        // === ORIGINAL LOGIC ===
         console.log(`[Server] User ${username} joining room ${roomId}`);
         socket.join(roomId);
-        socket.data.username = username;
+        socket.data.username = username; // Persist for legacy compatibility in other events
         socket.data.roomId = roomId;
 
         if (!rooms[roomId]) {
@@ -264,7 +299,7 @@ io.on('connection', (socket) => {
     // 1. Caller initiates Call Request
     socket.on('call-user', ({ roomId }) => {
         // Broadcast "Incoming Call" to room (except sender)
-        // In a real app with >2 users, you'd target a specific socketId. 
+        // In a real app with >2 users, you'd target a specific socketId.
         // For SyncTube MVP (assumed small groups), we broadcast to room.
         console.log(`[VC] Call Request from ${socket.data.username}`);
         socket.to(roomId).emit('call-request', {
@@ -309,11 +344,6 @@ io.on('connection', (socket) => {
     socket.on('vc-end', (roomId) => {
         console.log(`[VC] User ${socket.data.username} ended call`);
         socket.to(roomId).emit('vc-end', { id: socket.id });
-    });
-
-    socket.on('disconnect', () => {
-        // console.log('User disconnected:', socket.id);
-        // If in call, could trigger auto-hangup if we tracked state server-side
     });
 });
 

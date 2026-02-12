@@ -1,5 +1,17 @@
 // Socket Connection
-const socket = io();
+const socket = io({ autoConnect: false }); // Will connect after auth
+
+// Supabase Setup
+const SUPABASE_URL = 'https://inafwheucklsnkvqcfmf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImluYWZ3aGV1Y2tsc25rdnFjZm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3Mjc2NDIsImV4cCI6MjA4NjMwMzY0Mn0.vmrZg18TRq1jd2RZyHEaR9oOW4Xo8h_7rpO6ld9D6rg';
+
+// let supabase; // Removed duplicate declaration
+if (window.supabase) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} else {
+    console.error('Supabase SDK not loaded');
+    alert('Critical: Auth service failed to load. Please reload.');
+}
 
 // Sound Assets
 const notificationAudio = new Audio("/sounds/notification.mp3");
@@ -138,9 +150,25 @@ function formatTime(seconds) {
 
 
 // --- Initialization ---
-function init() {
+async function init() {
+    // Check for AUTH PARAMS FIRST (Critical Step 9 Safety)
     const urlParams = new URLSearchParams(window.location.search);
-    roomId = urlParams.get('room');
+    const hasAuthParams = window.location.hash.includes('access_token') || urlParams.has('code') || urlParams.has('error');
+
+    // Step 9: OAuth Redirect Safety (Check storage first)
+    const storedRoom = sessionStorage.getItem('returnRoom');
+    if (storedRoom) {
+        roomId = storedRoom;
+        sessionStorage.removeItem('returnRoom');
+
+        // ONLY replace state if we are NOT in an auth callback
+        if (!hasAuthParams) {
+            const newUrl = `${window.location.pathname}?room=${roomId}`;
+            window.history.replaceState({ path: newUrl }, '', newUrl);
+        }
+    } else {
+        roomId = urlParams.get('room');
+    }
 
     if (!roomId) {
         roomId = generateId();
@@ -150,40 +178,127 @@ function init() {
 
     console.log(`[Frontend] Init: roomId=${roomId}`);
 
-    const storedName = localStorage.getItem('synctube_username');
-    if (storedName) {
-        username = storedName;
-        joinRoom();
+    // Step 8: Join Flow Sequence Fix (Auth -> Profile -> Socket -> Join)
+    console.log("[Auth] Checking initial session...");
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log("[Auth] Initial session:", session);
+
+    // FIX: Check if we are returning from OAuth redirect
+    // Use the variable we already computed
+    const isOAuthRedirect = hasAuthParams;
+
+    // Fallback: If no session after 3s, show modal (prevents infinite loading)
+    let authTimeout;
+
+    if (session) {
+        console.log("[Auth] Session found, handling user...");
+        handleUserSession(session);
+    } else if (isOAuthRedirect) {
+        console.log("[Auth] OAuth redirect detected, waiting for session...");
+        authTimeout = setTimeout(() => {
+            console.warn("[Auth] Timeout waiting for session. Showing modal.");
+            usernameModal.classList.add('active');
+        }, 5000);
     } else {
+        console.log("[Auth] No session found, showing modal...");
         usernameModal.classList.add('active');
-        usernameInput.focus();
     }
+
+    // Listen for auth changes
+    supabase.auth.onAuthStateChange((event, session) => {
+        console.log(`[Auth] Event: ${event}`, session);
+
+        if (authTimeout) clearTimeout(authTimeout); // Cancel timeout if event fires
+
+        if (event === 'SIGNED_IN' && session) {
+            if (usernameModal.classList.contains('active')) {
+                usernameModal.classList.remove('active');
+            }
+            handleUserSession(session);
+        } else if (event === 'SIGNED_OUT') {
+            window.location.reload();
+        }
+    });
 }
 
-// Modal Logic
-usernameInput.addEventListener('input', () => {
-    startBtn.disabled = usernameInput.value.trim().length === 0;
-});
+// Handle User Session (Entry to Step 4)
+async function handleUserSession(session) {
+    if (!session || !session.user) return;
 
-startBtn.addEventListener('click', () => {
-    const name = usernameInput.value.trim();
-    if (name) {
-        username = name;
-        localStorage.setItem('synctube_username', username);
-        usernameModal.classList.remove('active');
-        joinRoom();
+    const user = session.user;
+    // Extract display name or fallback
+    username = user.user_metadata.full_name || user.user_metadata.name || user.email.split('@')[0];
+
+    console.log(`[Auth] Logged in as: ${username} (${user.email})`);
+
+    // Step 4: Profile Table Sync
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .upsert({
+                id: user.id,
+                email: user.email,
+                display_name: username,
+                avatar_url: user.user_metadata.avatar_url,
+                // updated_at: new Date() // REMOVED: Column does not exist in schema
+            });
+
+        if (error) {
+            console.error('[Profile] Upsert failed:', error);
+            alert("Critical: Profile sync failed. Check console.");
+            return; // Block socket connection (Step 5 requirement)
+        }
+
+        console.log('[Profile] User profile active');
+
+        // Step 5: Socket Connection Gate
+        connectSocket(session.access_token);
+
+    } catch (err) {
+        console.error('[Profile] Critical Error:', err);
     }
-});
 
-usernameInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !startBtn.disabled) startBtn.click();
-});
+    usernameModal.classList.remove('active');
+}
+
+const googleLoginBtn = document.getElementById('google-login-btn');
+if (googleLoginBtn) {
+    googleLoginBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+            // Step 9: OAuth Redirect Safety
+            if (roomId) {
+                sessionStorage.setItem('returnRoom', roomId);
+            }
+
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: window.location.href,
+                    skipBrowserRedirect: true
+                }
+            });
+            if (error) throw error;
+            if (data?.url) window.location.href = data.url;
+        } catch (err) {
+            console.error("Login failed:", err);
+            alert("Login failed. See console.");
+        }
+    });
+}
+
+function connectSocket(token) {
+    console.log("[Socket] Connecting with auth token...");
+    socket.auth = { token };
+    socket.connect();
+    joinRoom();
+}
 
 function joinRoom() {
-    console.log(`[Frontend] Joining Room: ${roomId} as ${username}`);
-    socket.emit('join-room', { roomId, username });
+    console.log(`[Frontend] Joining Room: ${roomId}`);
+    // Step 7 Pre-req: Remove username from payload (Server will use token)
+    socket.emit('join-room', { roomId });
 }
-
 
 // --- Socket Events ---
 socket.on('connect', () => {

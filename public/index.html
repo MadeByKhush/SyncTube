@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="/socket.io/socket.io.js"></script>
 </head>
 
@@ -282,12 +283,24 @@
                 <p>Choose a name to join your friends</p>
             </div>
 
-            <div class="input-group-lg">
-                <input type="text" id="username-input" placeholder="Enter your display name" maxlength="15"
-                    autocomplete="off">
-            </div>
-
-            <button id="start-btn" class="btn-gradient-lg" disabled>Continue &rarr;</button>
+            <button id="google-login-btn" class="btn-gradient-lg"
+                style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M23.52 12.29c0-.85-.08-1.68-.23-2.48H12v4.71h6.45c-.27 1.48-1.12 2.73-2.38 3.58v2.98h3.86c2.26-2.09 3.56-5.17 3.56-8.79z"
+                        fill="#4285F4" />
+                    <path
+                        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-2.98c-1.07.72-2.43 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.38 21.57 7.42 24 12 24z"
+                        fill="#34A853" />
+                    <path
+                        d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12c0 1.94.47 3.76 1.29 5.38l3.98-3.09z"
+                        fill="#FBBC05" />
+                    <path
+                        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.42 0 3.38 2.43 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z"
+                        fill="#EA4335" />
+                </svg>
+                Sign in with Google
+            </button>
 
             <p class="card-footer-text">Join your friends for a synchronized watch party.</p>
         </div>
