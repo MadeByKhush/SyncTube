@@ -93,6 +93,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Supabase Setup
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase env vars missing");
+}
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Socket.io Setup
