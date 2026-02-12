@@ -447,6 +447,7 @@ iframe {
 
 #volume-slider {
     -webkit-appearance: none;
+    appearance: none;
     width: 80px;
     height: 4px;
     background: rgba(255, 255, 255, 0.3);
@@ -457,6 +458,7 @@ iframe {
 
 #volume-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
+    appearance: none;
     width: 12px;
     height: 12px;
     border-radius: 50%;
