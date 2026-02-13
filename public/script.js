@@ -998,7 +998,7 @@ socket.on('vc-reconnect', async ({ id }) => {
             endCall();
             showToast('Call lost — reconnection timed out');
         }
-    }, 15000);
+    }, 120000);
 });
 
 function createPeerConnection(targetId) {
@@ -1028,7 +1028,7 @@ function createPeerConnection(targetId) {
                         endCall();
                         showToast('Call lost — reconnection timed out');
                     }
-                }, 15000);
+                }, 120000);
             }
         }
         if (state === 'connected') {

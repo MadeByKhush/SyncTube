@@ -643,6 +643,7 @@ iframe {
     justify-content: center;
     z-index: 100;
     border-radius: inherit;
+    pointer-events: none;
 }
 
 .vc-reconnecting-content {
