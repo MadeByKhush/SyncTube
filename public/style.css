@@ -633,6 +633,43 @@ iframe {
     background: rgba(255, 255, 255, 0.1);
 }
 
+/* --- VC Reconnecting Overlay --- */
+#vc-reconnecting-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    border-radius: inherit;
+}
+
+.vc-reconnecting-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.vc-reconnecting-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: vc-spin 0.8s linear infinite;
+}
+
+@keyframes vc-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* --- Chat Panel --- */
 .chat-column {
     min-height: 0;
@@ -1675,6 +1712,7 @@ iframe {
         transform: rotate(360deg);
     }
 }
+
 /* Loader Spinner */
 .loader-container {
     display: flex;
@@ -1695,7 +1733,9 @@ iframe {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .hidden {
@@ -1756,8 +1796,15 @@ iframe {
 }
 
 @keyframes fadeScale {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 .profile-header {
@@ -1853,4 +1900,3 @@ iframe {
 .btn-logout:hover {
     background: #fff1f2;
 }
-

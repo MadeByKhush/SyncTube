@@ -1,5 +1,5 @@
 // Socket Connection
-const socket = io({ autoConnect: false }); // Will connect after auth
+const socket = io({ autoConnect: false, reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1000 }); // Will connect after auth
 
 // Supabase Setup
 const SUPABASE_URL = 'https://inafwheucklsnkvqcfmf.supabase.co';
@@ -319,6 +319,33 @@ socket.on('connect', () => {
     connectionStatus.textContent = 'Connected';
     connectionStatus.classList.add('connected');
     connectionStatus.classList.remove('connecting');
+
+    // VC Auto-Recovery: re-join room and renegotiate WebRTC
+    if (vcReconnecting && savedCallRoomId) {
+        console.log('[VC Recovery] Socket reconnected, starting recovery...');
+        joinRoom();
+        socket.emit('vc-reconnect', { roomId: savedCallRoomId });
+        setTimeout(async () => {
+            try {
+                if (peerConnection) { peerConnection.close(); peerConnection = null; }
+                if (!localStream || localStream.getTracks().every(t => t.readyState === 'ended')) {
+                    await startLocalStream();
+                }
+                createPeerConnection(null);
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                socket.emit('vc-offer', { offer, roomId: savedCallRoomId });
+                console.log('[VC Recovery] Re-offer sent');
+            } catch (err) {
+                console.error('[VC Recovery] Failed:', err);
+                vcReconnecting = false;
+                savedCallRoomId = null;
+                showReconnectingOverlay(false);
+                endCall();
+            }
+        }, 1500);
+    }
 });
 
 // Session Timer
@@ -825,6 +852,26 @@ let peerConnection;
 let isCallActive = false;
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
+// --- VC Reconnection State ---
+let vcReconnecting = false;
+let savedCallRoomId = null;
+let vcReconnectTimeout = null;
+
+// --- Internet Disconnect Detection ---
+window.addEventListener('offline', () => {
+    console.log('[VC Recovery] Internet offline');
+    if (isCallActive) {
+        vcReconnecting = true;
+        savedCallRoomId = roomId;
+        showReconnectingOverlay(true);
+    }
+});
+
+window.addEventListener('online', () => {
+    console.log('[VC Recovery] Internet back online');
+    // Socket.io auto-reconnects; VC recovery triggered by socket 'connect' event
+});
+
 const callRequestModal = document.getElementById('call-request-modal');
 const callerNameDisplay = document.getElementById('caller-name-display');
 const acceptCallBtn = document.getElementById('accept-call-btn');
@@ -903,7 +950,7 @@ async function startLocalStream() {
 }
 
 socket.on('vc-offer', async ({ offer, id }) => {
-    if (!isCallActive) return;
+    if (!isCallActive && !vcReconnecting) return;
     createPeerConnection(id);
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
     await peerConnection.setRemoteDescription(offer);
@@ -920,6 +967,16 @@ socket.on('vc-ice-candidate', async ({ candidate }) => {
     if (peerConnection) await peerConnection.addIceCandidate(candidate);
 });
 
+// --- VC Reconnect Handler (peer triggered) ---
+socket.on('vc-reconnect', async ({ id }) => {
+    if (!isCallActive && !vcReconnecting) return;
+    console.log('[VC Recovery] Peer reconnecting, preparing for re-negotiation...');
+    // Peer will send a new offer; we just need to be ready
+    // Clean up old peer connection so we can accept new offer
+    if (peerConnection) { peerConnection.close(); peerConnection = null; }
+    showReconnectingOverlay(true);
+});
+
 function createPeerConnection(targetId) {
     if (peerConnection) peerConnection.close();
     peerConnection = new RTCPeerConnection(rtcConfig);
@@ -930,14 +987,63 @@ function createPeerConnection(targetId) {
         remoteVideo.srcObject = event.streams[0];
     };
     peerConnection.onconnectionstatechange = () => {
-        if (peerConnection.connectionState === 'disconnected') remoteVideo.srcObject = null;
+        if (!peerConnection) return;
+        const state = peerConnection.connectionState;
+        console.log('[VC] Connection state:', state);
+        if (state === 'disconnected' || state === 'failed') {
+            if (!vcReconnecting && isCallActive) {
+                vcReconnecting = true;
+                savedCallRoomId = roomId;
+                showReconnectingOverlay(true);
+                vcReconnectTimeout = setTimeout(() => {
+                    if (vcReconnecting) {
+                        console.log('[VC Recovery] Timeout — ending call');
+                        vcReconnecting = false;
+                        savedCallRoomId = null;
+                        showReconnectingOverlay(false);
+                        endCall();
+                        showToast('Call lost — reconnection timed out');
+                    }
+                }, 15000);
+            }
+        }
+        if (state === 'connected') {
+            if (vcReconnecting) {
+                vcReconnecting = false;
+                savedCallRoomId = null;
+                showReconnectingOverlay(false);
+                if (vcReconnectTimeout) { clearTimeout(vcReconnectTimeout); vcReconnectTimeout = null; }
+                showToast('Call reconnected! ✅');
+            }
+        }
     };
+}
+
+// --- Reconnecting Overlay Helper ---
+function showReconnectingOverlay(show) {
+    let overlay = document.getElementById('vc-reconnecting-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'vc-reconnecting-overlay';
+        overlay.innerHTML = `
+            <div class="vc-reconnecting-content">
+                <div class="vc-reconnecting-spinner"></div>
+                <span>Reconnecting…</span>
+            </div>
+        `;
+        document.getElementById('video-call-area').appendChild(overlay);
+    }
+    overlay.style.display = show ? 'flex' : 'none';
 }
 
 vcEndBtn.addEventListener('click', endCall);
 
 function endCall() {
     isCallActive = false;
+    vcReconnecting = false;
+    savedCallRoomId = null;
+    if (vcReconnectTimeout) { clearTimeout(vcReconnectTimeout); vcReconnectTimeout = null; }
+    showReconnectingOverlay(false);
     videoCallArea.classList.add('hidden');
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
@@ -962,6 +1068,9 @@ function endCall() {
 }
 
 socket.on('vc-end', () => {
+    // Don't end call if we're in reconnecting state (peer's socket dropped temporarily)
+    if (vcReconnecting) return;
+
     // Guard: prevent duplicate cleanup
     if (!isCallActive && !callRequestModal.classList.contains('active')) {
         // Already cleaned up, just stop ringtone

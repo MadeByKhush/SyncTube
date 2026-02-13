@@ -348,6 +348,12 @@ io.on('connection', (socket) => {
         console.log(`[VC] User ${socket.data.username} ended call`);
         socket.to(roomId).emit('vc-end', { id: socket.id });
     });
+
+    // 6. Reconnect Signal (auto-recovery)
+    socket.on('vc-reconnect', ({ roomId }) => {
+        console.log(`[VC] Reconnect request from ${socket.data.username}`);
+        socket.to(roomId).emit('vc-reconnect', { id: socket.id });
+    });
 });
 
 // ============================================================
