@@ -98,7 +98,8 @@ function updateVCVisibility() {
     } else {
         vcStartBtn.classList.add('hidden');
         // If call active and user count changed from 2, end the call
-        if (isCallActive) {
+        // BUT NOT during reconnect — peer is temporarily offline, not gone
+        if (isCallActive && !vcReconnecting) {
             showToast('VC ended: Room must have exactly 2 users');
             endCall();
         }
@@ -325,7 +326,10 @@ socket.on('connect', () => {
         console.log('[VC Recovery] Socket reconnected, starting recovery...');
         joinRoom();
         socket.emit('vc-reconnect', { roomId: savedCallRoomId });
+        // Short delay for room re-join to propagate before sending offer
         setTimeout(async () => {
+            // Bail if user manually ended call during the delay
+            if (!vcReconnecting) return;
             try {
                 if (peerConnection) { peerConnection.close(); peerConnection = null; }
                 if (!localStream || localStream.getTracks().every(t => t.readyState === 'ended')) {
@@ -344,7 +348,7 @@ socket.on('connect', () => {
                 showReconnectingOverlay(false);
                 endCall();
             }
-        }, 1500);
+        }, 500);
     }
 });
 
@@ -355,7 +359,8 @@ socket.on('room-state', (state) => {
     if (state.userCount > 1) unlockVideoCall();
     if (viewerCountEl) viewerCountEl.innerText = `👁 ${state.userCount} watching`;
     roomUserCount = state.userCount || 1;
-    updateVCVisibility();
+    // Skip VC visibility check during reconnect to prevent false teardown
+    if (!vcReconnecting) updateVCVisibility();
 
     if (state.sessionStartTime) {
         sessionStartTime = state.sessionStartTime;
@@ -370,7 +375,8 @@ socket.on('room-state', (state) => {
 socket.on('update-user-count', ({ count }) => {
     if (viewerCountEl) viewerCountEl.innerText = `👁 ${count} watching`;
     roomUserCount = count;
-    updateVCVisibility();
+    // Skip VC visibility check during reconnect to prevent false teardown
+    if (!vcReconnecting) updateVCVisibility();
 });
 
 function updateSessionTimer() {
@@ -446,7 +452,8 @@ function onYouTubeIframeAPIReady() {
             'modestbranding': 1,
             'rel': 0,
             'iv_load_policy': 3,
-            'fs': 0 // We handle fullscreen
+            'fs': 0, // We handle fullscreen
+            'origin': window.location.origin
         },
         events: {
             'onReady': onPlayerReady,
@@ -971,10 +978,24 @@ socket.on('vc-ice-candidate', async ({ candidate }) => {
 socket.on('vc-reconnect', async ({ id }) => {
     if (!isCallActive && !vcReconnecting) return;
     console.log('[VC Recovery] Peer reconnecting, preparing for re-negotiation...');
-    // Peer will send a new offer; we just need to be ready
-    // Clean up old peer connection so we can accept new offer
-    if (peerConnection) { peerConnection.close(); peerConnection = null; }
+    // Set reconnecting state — DON'T close peerConnection here.
+    // The incoming vc-offer handler calls createPeerConnection() which
+    // properly closes the old one and creates a new one atomically.
+    vcReconnecting = true;
+    savedCallRoomId = roomId;
     showReconnectingOverlay(true);
+    // Start timeout for this side too
+    if (vcReconnectTimeout) clearTimeout(vcReconnectTimeout);
+    vcReconnectTimeout = setTimeout(() => {
+        if (vcReconnecting) {
+            console.log('[VC Recovery] Peer-side timeout — ending call');
+            vcReconnecting = false;
+            savedCallRoomId = null;
+            showReconnectingOverlay(false);
+            endCall();
+            showToast('Call lost — reconnection timed out');
+        }
+    }, 15000);
 });
 
 function createPeerConnection(targetId) {
@@ -1068,7 +1089,10 @@ function endCall() {
 }
 
 socket.on('vc-end', () => {
-    // Don't end call if we're in reconnecting state (peer's socket dropped temporarily)
+    // If reconnecting, this vc-end was triggered by the peer's socket drop.
+    // Ignore it — the peer is trying to reconnect, not intentionally ending.
+    // Note: Manual endCall() by the user still works because it calls endCall()
+    // directly, which clears vcReconnecting FIRST, then emits vc-end.
     if (vcReconnecting) return;
 
     // Guard: prevent duplicate cleanup
