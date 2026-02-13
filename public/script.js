@@ -299,7 +299,11 @@ if (googleLoginBtn) {
     });
 }
 
+let hasConnectedSocket = false;
+
 function connectSocket(token) {
+    if (hasConnectedSocket) return; // Prevent duplicate join on tab-switch auth refresh
+    hasConnectedSocket = true;
     console.log("[Socket] Connecting with auth token...");
     socket.auth = { token };
     socket.connect();
@@ -503,6 +507,10 @@ function emitSync(isPlaying) {
 }
 
 function loadVideo(id) {
+    if (id === currentVideoId && player && player.getPlayerState && player.getPlayerState() !== -1) {
+        // Same video already loaded and player is active — skip reload
+        return;
+    }
     currentVideoId = id;
     if (player && player.loadVideoById) {
         player.loadVideoById(id);
