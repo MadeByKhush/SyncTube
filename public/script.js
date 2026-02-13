@@ -432,6 +432,40 @@ socket.on('new-chat', (data) => {
     if (!isMine) playNotificationSound();
 });
 
+// --- Manual Sync ---
+const syncBtn = document.getElementById('sync-btn');
+syncBtn.addEventListener('click', () => {
+    if (!roomId) return;
+    socket.emit('request-sync', { roomId });
+    showToast('Syncing playback...');
+});
+
+socket.on('force-sync', (data) => {
+    if (!player || !player.seekTo) return;
+
+    isRemoteUpdate = true;
+    const tolerance = 0.5;
+    const currentTime = player.getCurrentTime();
+
+    if (Math.abs(currentTime - data.timestamp) > tolerance) {
+        player.seekTo(data.timestamp, true);
+    }
+
+    if (data.isPlaying) {
+        player.playVideo();
+        updatePlayButtonState(true);
+    } else {
+        player.pauseVideo();
+        updatePlayButtonState(false);
+    }
+
+    updateProgressBar();
+    showToast('Playback synced ✅');
+
+    setTimeout(() => {
+        isRemoteUpdate = false;
+    }, 500);
+});
 
 // --- YouTube Player API ---
 const tag = document.createElement('script');

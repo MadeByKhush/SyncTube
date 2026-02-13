@@ -301,6 +301,17 @@ io.on('connection', (socket) => {
         });
     });
 
+    // --- Manual Sync (Any user can request) ---
+    socket.on('request-sync', (data) => {
+        const roomId = data?.roomId;
+        if (!roomId || !rooms[roomId]) return;
+
+        socket.emit('force-sync', {
+            timestamp: rooms[roomId].timestamp,
+            isPlaying: rooms[roomId].isPlaying
+        });
+    });
+
     // --- Video Call Signaling (1-to-1 Request Handshake) ---
 
     // 1. Caller initiates Call Request
