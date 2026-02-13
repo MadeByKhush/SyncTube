@@ -92,17 +92,14 @@ let isCameraEnabled = true;
 let roomUserCount = 1;
 
 // VC Visibility Control (gated to exactly 2 users)
+// IMPORTANT: This only controls the "Start Call" button visibility.
+// It must NEVER auto-end an active call — user count can transiently
+// drop to 1 during socket reconnection before any recovery flags are set.
 function updateVCVisibility() {
     if (roomUserCount === 2) {
         vcStartBtn.classList.remove('hidden');
     } else {
         vcStartBtn.classList.add('hidden');
-        // If call active and user count changed from 2, end the call
-        // BUT NOT during reconnect — peer is temporarily offline, not gone
-        if (isCallActive && !vcReconnecting) {
-            showToast('VC ended: Room must have exactly 2 users');
-            endCall();
-        }
     }
 }
 
@@ -359,8 +356,7 @@ socket.on('room-state', (state) => {
     if (state.userCount > 1) unlockVideoCall();
     if (viewerCountEl) viewerCountEl.innerText = `👁 ${state.userCount} watching`;
     roomUserCount = state.userCount || 1;
-    // Skip VC visibility check during reconnect to prevent false teardown
-    if (!vcReconnecting) updateVCVisibility();
+    updateVCVisibility();
 
     if (state.sessionStartTime) {
         sessionStartTime = state.sessionStartTime;
@@ -375,8 +371,7 @@ socket.on('room-state', (state) => {
 socket.on('update-user-count', ({ count }) => {
     if (viewerCountEl) viewerCountEl.innerText = `👁 ${count} watching`;
     roomUserCount = count;
-    // Skip VC visibility check during reconnect to prevent false teardown
-    if (!vcReconnecting) updateVCVisibility();
+    updateVCVisibility();
 });
 
 function updateSessionTimer() {
