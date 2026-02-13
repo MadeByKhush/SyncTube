@@ -184,9 +184,13 @@ io.on('connection', (socket) => {
                 timestamp: 0,
                 lastUpdate: Date.now(),
                 sessionStartTime: Date.now(),
-                hostSocketId: socket.id // Track host for video control
+                hostSocketId: socket.id,
+                hostUserId: socket.data.user.id // Persist host identity across reconnects
             };
             stats.roomsCreated++;
+        } else if (rooms[roomId].hostUserId && rooms[roomId].hostUserId === socket.data.user.id) {
+            // Host rejoined with a new socket — update hostSocketId
+            rooms[roomId].hostSocketId = socket.id;
         }
 
         const userCount = io.sockets.adapter.rooms.get(roomId)?.size || 0;
