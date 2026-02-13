@@ -444,10 +444,27 @@ socket.on('force-sync', (data) => {
     if (!player || !player.seekTo) return;
 
     isRemoteUpdate = true;
+
+    // Edge case: videoId differs — load correct video first
+    if (data.videoId && data.videoId !== currentVideoId) {
+        loadVideo(data.videoId);
+    }
+
     const tolerance = 0.5;
     const currentTime = player.getCurrentTime();
+    const drift = Math.abs(currentTime - data.timestamp);
+    const playStateMatches = data.isPlaying
+        ? player.getPlayerState() === YT.PlayerState.PLAYING
+        : player.getPlayerState() === YT.PlayerState.PAUSED;
 
-    if (Math.abs(currentTime - data.timestamp) > tolerance) {
+    // Already in sync — skip
+    if (drift <= tolerance && playStateMatches && data.videoId === currentVideoId) {
+        showToast('Already in sync ✅');
+        isRemoteUpdate = false;
+        return;
+    }
+
+    if (drift > tolerance) {
         player.seekTo(data.timestamp, true);
     }
 

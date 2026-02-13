@@ -307,6 +307,7 @@ io.on('connection', (socket) => {
         if (!roomId || !rooms[roomId]) return;
 
         socket.emit('force-sync', {
+            videoId: rooms[roomId].videoId,
             timestamp: rooms[roomId].timestamp,
             isPlaying: rooms[roomId].isPlaying
         });
