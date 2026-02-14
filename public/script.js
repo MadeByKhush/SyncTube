@@ -401,6 +401,7 @@ socket.on('update-video', (data) => {
 
 socket.on('sync-update', (data) => {
     if (!player || !player.seekTo) return;
+    if (isHardSyncing) return; // Suppress during hard sync alignment
 
     isRemoteUpdate = true;
     const tolerance = 0.5;
@@ -432,54 +433,63 @@ socket.on('new-chat', (data) => {
     if (!isMine) playNotificationSound();
 });
 
-// --- Manual Sync ---
+// --- Hard Sync ---
+let isHardSyncing = false;
+let lastSyncClick = 0;
 const syncBtn = document.getElementById('sync-btn');
+
 syncBtn.addEventListener('click', () => {
-    if (!roomId) return;
-    socket.emit('request-sync', { roomId });
-    showToast('Syncing playback...');
+    if (!roomId || !player || !player.getCurrentTime) return;
+
+    // Debounce: prevent overlapping sync requests (2s cooldown)
+    const now = Date.now();
+    if (now - lastSyncClick < 2000) {
+        showToast('Sync already in progress...');
+        return;
+    }
+    lastSyncClick = now;
+
+    socket.emit('hard-sync', {
+        roomId,
+        timestamp: player.getCurrentTime(),
+        videoId: currentVideoId
+    });
+    showToast('Syncing everyone...');
 });
 
-socket.on('force-sync', (data) => {
+socket.on('hard-sync-prepare', (data) => {
     if (!player || !player.seekTo) return;
 
+    isHardSyncing = true;
     isRemoteUpdate = true;
 
-    // Edge case: videoId differs — load correct video first
+    // Load correct video if needed
     if (data.videoId && data.videoId !== currentVideoId) {
         loadVideo(data.videoId);
     }
 
-    const tolerance = 0.5;
-    const currentTime = player.getCurrentTime();
-    const drift = Math.abs(currentTime - data.timestamp);
-    const playStateMatches = data.isPlaying
-        ? player.getPlayerState() === YT.PlayerState.PLAYING
-        : player.getPlayerState() === YT.PlayerState.PAUSED;
+    // Pause + seek
+    player.pauseVideo();
+    player.seekTo(data.timestamp, true);
+    updatePlayButtonState(false);
+    updateProgressBar();
+});
 
-    // Already in sync — skip
-    if (drift <= tolerance && playStateMatches && data.videoId === currentVideoId) {
-        showToast('Already in sync ✅');
-        isRemoteUpdate = false;
-        return;
-    }
+socket.on('hard-sync-resume', (data) => {
+    if (!player || !player.playVideo) return;
 
-    if (drift > tolerance) {
+    // Final seek to ensure alignment, then play
+    if (data.timestamp != null) {
         player.seekTo(data.timestamp, true);
     }
-
-    if (data.isPlaying) {
-        player.playVideo();
-        updatePlayButtonState(true);
-    } else {
-        player.pauseVideo();
-        updatePlayButtonState(false);
-    }
-
+    player.playVideo();
+    updatePlayButtonState(true);
     updateProgressBar();
     showToast('Playback synced ✅');
 
+    // Re-enable normal sync loop
     setTimeout(() => {
+        isHardSyncing = false;
         isRemoteUpdate = false;
     }, 500);
 });

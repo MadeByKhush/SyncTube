@@ -301,16 +301,29 @@ io.on('connection', (socket) => {
         });
     });
 
-    // --- Manual Sync (Any user can request) ---
-    socket.on('request-sync', (data) => {
+    // --- Hard Sync (Any user can trigger, affects ALL users) ---
+    socket.on('hard-sync', (data) => {
         const roomId = data?.roomId;
         if (!roomId || !rooms[roomId]) return;
+        if (typeof data.timestamp !== 'number') return;
 
-        socket.emit('force-sync', {
-            videoId: rooms[roomId].videoId,
-            timestamp: rooms[roomId].timestamp,
-            isPlaying: rooms[roomId].isPlaying
-        });
+        const videoId = data.videoId || rooms[roomId].videoId;
+        const timestamp = data.timestamp;
+
+        // Update room state
+        rooms[roomId].timestamp = timestamp;
+        rooms[roomId].isPlaying = false; // Paused during alignment
+        rooms[roomId].lastUpdate = Date.now();
+
+        // Step 1: Tell ALL clients to pause + seek
+        io.to(roomId).emit('hard-sync-prepare', { videoId, timestamp });
+
+        // Step 2: After alignment delay, tell ALL clients to resume
+        setTimeout(() => {
+            rooms[roomId].isPlaying = true;
+            rooms[roomId].lastUpdate = Date.now();
+            io.to(roomId).emit('hard-sync-resume', { timestamp });
+        }, 800);
     });
 
     // --- Video Call Signaling (1-to-1 Request Handshake) ---
