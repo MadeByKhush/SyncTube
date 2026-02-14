@@ -1323,8 +1323,53 @@ function makeDraggable(element) {
 }
 makeDraggable(videoCallArea);
 
-// Run Init
-init();
+// --- Desktop Guard Logic ---
+let appInitialized = false;
+
+function checkDevice() {
+    const width = window.innerWidth;
+    const isFinePointer = window.matchMedia('(pointer: fine)').matches;
+    // Guard Rule: Must be >= 1024px AND have fine pointer (mouse/trackpad)
+    const isDesktop = width >= 1024 && isFinePointer;
+
+    const guard = document.getElementById('desktop-guard');
+    const app = document.querySelector('.app-container');
+
+    if (isDesktop) {
+        if (guard) guard.classList.add('hidden');
+        if (app) app.classList.remove('hidden');
+        return true;
+    } else {
+        if (guard) guard.classList.remove('hidden');
+        if (app) app.classList.add('hidden');
+
+        // Safety: If app was already running, pause video to prevent background audio
+        if (appInitialized && typeof player !== 'undefined' && player && player.pauseVideo) {
+            try { player.pauseVideo(); } catch (e) { /* ignore */ }
+        }
+        return false;
+    }
+}
+
+// Initial Check & Launch
+if (checkDevice()) {
+    appInitialized = true;
+    init();
+} else {
+    // If mobile start, do NOT init app (no socket, no auth)
+    console.log('[Desktop Guard] Mobile device detected. App prevented.');
+}
+
+// Resize Monitor
+window.addEventListener('resize', () => {
+    const isDesktop = checkDevice();
+
+    // Recovery: Mobile -> Desktop
+    if (isDesktop && !appInitialized) {
+        // Must reload to cleanly initialize everything
+        window.location.reload();
+    }
+});
 
 // --- Profile UI Logic ---
 
