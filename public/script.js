@@ -1110,12 +1110,15 @@ function showReconnectingOverlay(show) {
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'vc-reconnecting-overlay';
-        overlay.innerHTML = `
-            <div class="vc-reconnecting-content">
-                <div class="vc-reconnecting-spinner"></div>
-                <span>Reconnecting…</span>
-            </div>
-        `;
+        const content = document.createElement('div');
+        content.className = 'vc-reconnecting-content';
+        const spinner = document.createElement('div');
+        spinner.className = 'vc-reconnecting-spinner';
+        const label = document.createElement('span');
+        label.textContent = 'Reconnecting…';
+        content.appendChild(spinner);
+        content.appendChild(label);
+        overlay.appendChild(content);
         document.getElementById('video-call-area').appendChild(overlay);
     }
     overlay.style.display = show ? 'flex' : 'none';
@@ -1343,10 +1346,19 @@ function updateProfileUI(user) {
     // Update Avatar
     const avatarUrl = user.user_metadata.avatar_url;
     if (avatarUrl) {
-        profileBtn.innerHTML = `<img src='${avatarUrl}' class='profile-avatar' alt='Profile'>`;
+        profileBtn.textContent = '';
+        const avatarImg = document.createElement('img');
+        avatarImg.src = avatarUrl;
+        avatarImg.className = 'profile-avatar';
+        avatarImg.alt = 'Profile';
+        profileBtn.appendChild(avatarImg);
     } else {
         const initials = ((username || user.email) || 'User').substring(0, 2).toUpperCase();
-        profileBtn.innerHTML = `<div class='profile-initials'>${initials}</div>`;
+        profileBtn.textContent = '';
+        const initialsDiv = document.createElement('div');
+        initialsDiv.className = 'profile-initials';
+        initialsDiv.textContent = initials;
+        profileBtn.appendChild(initialsDiv);
     }
 
     // Update Dropdown Info
