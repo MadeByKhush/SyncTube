@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
@@ -88,12 +89,36 @@ const server = http.createServer(app);
 
 // Middleware
 app.use(cors());
+
+// Dynamically serve script.js to inject Vite-style environment variables
+app.get('/script.js', (req, res) => {
+    try {
+        let script = fs.readFileSync(path.join(__dirname, 'public', 'script.js'), 'utf8');
+
+        // Remove bare module import and map createClient to window.supabase
+        script = script.replace(/import\s*\{\s*createClient\s*\}\s*from\s*['"]@supabase\/supabase-js['"];?/g, 'const createClient = window.supabase.createClient;');
+
+        // Inject environment variables as Vite would
+        script = script.replace(/import\.meta\.env\.VITE_SUPABASE_URL/g, `"${supabaseUrl}"`);
+        script = script.replace(/import\.meta\.env\.VITE_SUPABASE_ANON_KEY/g, `"${supabaseKey}"`);
+
+        res.type('application/javascript');
+        res.send(script);
+    } catch (err) {
+        res.status(500).send('Error loading script');
+    }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
-const supabase = createClient(
-    process.env.VITE_SUPABASE_URL,
-    process.env.VITE_SUPABASE_ANON_KEY
-);
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase env vars missing. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY on Render.");
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Socket.io Setup
 const io = new Server(server, {
