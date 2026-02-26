@@ -1,17 +1,12 @@
 // Socket Connection
 const socket = io({ autoConnect: false, reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1000 }); // Will connect after auth
 
-// Supabase Setup
-const SUPABASE_URL = 'https://inafwheucklsnkvqcfmf.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImluYWZ3aGV1Y2tsc25rdnFjZm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3Mjc2NDIsImV4cCI6MjA4NjMwMzY0Mn0.vmrZg18TRq1jd2RZyHEaR9oOW4Xo8h_7rpO6ld9D6rg';
+import { createClient } from '@supabase/supabase-js';
 
-// let supabase; // Removed duplicate declaration
-if (window.supabase) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-} else {
-    console.error('Supabase SDK not loaded');
-    alert('Critical: Auth service failed to load. Please reload.');
-}
+const supabase = createClient(
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 // Sound Assets
 const notificationAudio = new Audio("/sounds/notification.mp3");
