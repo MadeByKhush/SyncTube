@@ -2,8 +2,8 @@
 const socket = io({ autoConnect: false, reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1000 }); // Will connect after auth
 
 // Supabase Setup
-const SUPABASE_URL = 'https://inafwheucklsnkvqcfmf.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImluYWZ3aGV1Y2tsc25rdnFjZm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3Mjc2NDIsImV4cCI6MjA4NjMwMzY0Mn0.vmrZg18TRq1jd2RZyHEaR9oOW4Xo8h_7rpO6ld9D6rg';
+const SUPABASE_URL = 'https://smlelryosqzsvhsdxopq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtbGVscnlvc3F6c3Zoc2R4b3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwOTM2NzEsImV4cCI6MjA4NzY2OTY3MX0.yolK7ejh2vVG3yFWHSlUbQF9oF5fafKbYE2ZyA1Ry0s';
 
 // let supabase; // Removed duplicate declaration
 if (window.supabase) {
@@ -199,10 +199,10 @@ async function init() {
     // Fallback: If no session after 3s, show modal (prevents infinite loading)
     let authTimeout;
 
-    if (session) {
+    if (session?.user) {
         console.log("[Auth] Session found, handling user...");
         // Loader stays visible until handleUserSession finishes
-        handleUserSession(session);
+        handleUserSession(session.user);
     } else if (isOAuthRedirect) {
         console.log("[Auth] OAuth redirect detected, waiting for session...");
         // Loader stays visible. Set timeout to switch to button if it hangs
@@ -223,20 +223,24 @@ async function init() {
 
         if (authTimeout) clearTimeout(authTimeout); // Cancel timeout if event fires
 
-        if (event === 'SIGNED_IN' && session) {
+        if (event === 'SIGNED_IN' && session?.user) {
             // Logic handled by handleUserSession (which closes modal)
-            handleUserSession(session);
+            handleUserSession(session.user);
         } else if (event === 'SIGNED_OUT') {
             window.location.reload();
         }
     });
+
+    // Step 6: Add Token Auto Refresh
+    if (supabase.auth.startAutoRefresh) {
+        supabase.auth.startAutoRefresh();
+    }
 }
 
 // Handle User Session (Entry to Step 4)
-async function handleUserSession(session) {
-    if (!session || !session.user) return;
+async function handleUserSession(user) {
+    if (!user) return;
 
-    const user = session.user;
     // Extract display name or fallback
     username = user.user_metadata.full_name || user.user_metadata.name || user.email.split('@')[0];
 
@@ -245,14 +249,13 @@ async function handleUserSession(session) {
     // Step 4: Profile Table Sync
     try {
         const { error } = await supabase
-            .from('profiles')
+            .from('users')
             .upsert({
                 id: user.id,
                 email: user.email,
-                display_name: username,
-                avatar_url: user.user_metadata.avatar_url,
-                // updated_at: new Date() // REMOVED: Column does not exist in schema
-            });
+                name: username,
+                avatar_url: user.user_metadata?.avatar_url
+            }, { onConflict: 'id' });
 
         if (error) {
             console.error('[Profile] Upsert failed:', error);
@@ -263,7 +266,11 @@ async function handleUserSession(session) {
         console.log('[Profile] User profile active');
 
         // Step 5: Socket Connection Gate
-        connectSocket(session.access_token);
+        // Wait, we need the token to pass to the socket
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            connectSocket(session.access_token);
+        }
 
     } catch (err) {
         console.error('[Profile] Critical Error:', err);
@@ -1449,8 +1456,8 @@ if (saveNameBtn) {
             if (!user) return;
 
             const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ display_name: newName })
+                .from('users')
+                .update({ name: newName })
                 .eq('id', user.id);
 
             if (updateError) throw updateError;
