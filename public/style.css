@@ -739,6 +739,12 @@ iframe {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+.chat-messages::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
 }
 
 .message {
