@@ -229,8 +229,7 @@ async function init() {
         } else if (event === 'TOKEN_REFRESHED' && session) {
             console.log('[Auth] Token refreshed, updating socket authn');
             socket.auth.token = session.access_token;
-            // Optionally, we could force a reconnect here if the server validates strictly per-packet, 
-            // but socket.io only checks auth during handshake. Better to update the auth object for future reconnects.
+            socket.disconnect().connect();
         } else if (event === 'SIGNED_OUT') {
             window.location.reload();
         }
@@ -377,7 +376,9 @@ socket.on('connect', () => {
     connectionStatus.classList.remove('Connecting');
 
     // BUG FIX: Ensure we always rejoin the room when socket reconnects
-    joinRoom();
+    if (roomId) {
+        joinRoom();
+    }
 
     // VC Auto-Recovery: re-join room and renegotiate WebRTC
     if (vcReconnecting && savedCallRoomId) {

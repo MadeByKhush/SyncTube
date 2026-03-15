@@ -165,10 +165,12 @@ io.on('connection', (socket) => {
             return socket.emit('error', { message: 'Server busy, try later.' });
         }
 
+        let isFirstJoin = false;
+
         if (!isNewRoom) {
              const room = rooms[roomId];
              const isHost = room.hostUserId === user.id;
-             const isAllowed = room.allowedUsers.has(user.id);
+             const isAllowed = room.allowedUsers[user.id];
 
              if (!isHost && !isAllowed) {
                  if (!roomCode) {
@@ -179,7 +181,8 @@ io.on('connection', (socket) => {
                      return socket.emit('room-access-denied');
                  }
                  // Correct code, add to allowed list
-                 room.allowedUsers.add(user.id);
+                 room.allowedUsers[user.id] = true;
+                 isFirstJoin = true;
              }
         }
 
@@ -197,10 +200,11 @@ io.on('connection', (socket) => {
         socket.data.roomId = roomId;
 
         if (isNewRoom) {
+            isFirstJoin = true;
             const newRoomCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit code
             rooms[roomId] = {
                 roomCode: newRoomCode,
-                allowedUsers: new Set([user.id]),
+                allowedUsers: { [user.id]: true },
                 videoId: null,
                 isPlaying: false,
                 timestamp: 0,
@@ -227,10 +231,12 @@ io.on('connection', (socket) => {
             userCount
         });
 
-        socket.to(roomId).emit('system-message', {
-            type: 'system',
-            message: `${sanitize(username)} joined your party 🎉`
-        });
+        if (isFirstJoin) {
+            socket.to(roomId).emit('system-message', {
+                type: 'system',
+                message: `${sanitize(username)} joined your party 🎉`
+            });
+        }
 
         broadcastUserCount(roomId);
     });
