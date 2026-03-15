@@ -335,6 +335,18 @@ io.on('connection', (socket) => {
         });
     });
 
+    socket.on('typing', (data) => {
+        const { roomId, username } = data;
+        if (!roomId) return;
+        socket.to(roomId).emit('user-typing', { username });
+    });
+
+    socket.on('stop-typing', (data) => {
+        const { roomId, username } = data;
+        if (!roomId) return;
+        socket.to(roomId).emit('user-stop-typing', { username });
+    });
+
     // --- Hard Sync (Any user can trigger, affects ALL users) ---
     socket.on('hard-sync', (data) => {
         const roomId = data?.roomId;

@@ -1908,6 +1908,25 @@ iframe {
     background: #fff1f2;
 }
 
+/* --- Typing Indicator --- */
+.typing-indicator {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-style: italic;
+    padding: 4px 16px;
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+    animation: pulseSync 1.5s infinite;
+    line-height: 1;
+}
+
+@keyframes pulseSync {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
 /* --- Desktop Guard --- */
 .desktop-guard {
     position: fixed;

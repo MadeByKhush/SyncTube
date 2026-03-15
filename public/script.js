@@ -913,6 +913,78 @@ socket.on('system-message', (data) => {
     unlockVideoCall();
 });
 
+// --- Typing Indicator Logic ---
+let typingTimer;
+let isTyping = false;
+const typingIndicator = document.getElementById('typing-indicator');
+const activeTypers = new Set();
+let cleanupTypersTimeout;
+
+function updateTypingUI() {
+    if (activeTypers.size === 0) {
+        typingIndicator.classList.add('hidden');
+        typingIndicator.innerText = '';
+        return;
+    }
+    
+    typingIndicator.classList.remove('hidden');
+    const typersArray = Array.from(activeTypers);
+    let text = '';
+    if (typersArray.length === 1) {
+        text = `${typersArray[0]} is typing...`;
+    } else if (typersArray.length === 2) {
+        text = `${typersArray[0]} and ${typersArray[1]} are typing...`;
+    } else {
+        text = 'Multiple people are typing...';
+    }
+    typingIndicator.innerText = text;
+    
+    // Auto-cleanup after 2.5s to prevent stuck indicators
+    clearTimeout(cleanupTypersTimeout);
+    cleanupTypersTimeout = setTimeout(() => {
+        activeTypers.clear();
+        updateTypingUI();
+    }, 2500);
+}
+
+socket.on('user-typing', (data) => {
+    if (data.username) {
+        activeTypers.add(data.username);
+        updateTypingUI();
+    }
+});
+
+socket.on('user-stop-typing', (data) => {
+    if (data.username) {
+        activeTypers.delete(data.username);
+        updateTypingUI();
+    }
+});
+
+chatInput.addEventListener('input', () => {
+    if (!roomId) return;
+    const currentUser = username || localStorage.getItem('synctube_username');
+    if (!currentUser) return;
+    
+    clearTimeout(typingTimer);
+    
+    if (chatInput.value.trim().length > 0) {
+        if (!isTyping) {
+            isTyping = true;
+            socket.emit('typing', { roomId, username: currentUser });
+        }
+        
+        // Auto-stop typing if user pauses typing for 1.5s
+        typingTimer = setTimeout(() => {
+            isTyping = false;
+            socket.emit('stop-typing', { roomId, username: currentUser });
+        }, 1500);
+    } else {
+        isTyping = false;
+        socket.emit('stop-typing', { roomId, username: currentUser });
+    }
+});
+
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
@@ -926,6 +998,11 @@ function sendMessage() {
     if (text) {
         socket.emit('chat-message', { roomId, message: text, sender: username });
         chatInput.value = '';
+        
+        // Immediately stop typing
+        isTyping = false;
+        clearTimeout(typingTimer);
+        socket.emit('stop-typing', { roomId, username });
     }
 }
 
