@@ -285,6 +285,16 @@
                 </div>
             </div>
 
+            <div class="link-section" style="margin-top: 15px;">
+                <label>Room Code (PIN)</label>
+                <div class="link-pill" style="border: 2px dashed var(--primary); background: rgba(99, 102, 241, 0.05);">
+                    <span class="link-icon"><i data-lucide="key" style="width: 16px; height: 16px; color: var(--primary);"></i></span>
+                    <input type="text" id="invite-code-input" readonly value="------" style="font-family: monospace; font-size: 1.2rem; font-weight: 700; letter-spacing: 4px; color: var(--text);">
+                    <button id="copy-code-btn" style="background: var(--primary); color: white;">Copy</button>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; text-align: center;">Guests will need this 6-digit PIN to join the room.</p>
+            </div>
+
             <button id="close-invite-btn" class="close-text-btn">Close</button>
         </div>
     </div>
@@ -370,6 +380,29 @@
             </button>
 
             <p class="card-footer-text">Join your friends for a synchronized watch party.</p>
+        </div>
+    </div>
+
+    <!-- Room Access PIN Modal -->
+    <div id="room-access-modal" class="modal-overlay">
+        <div class="identity-card" style="max-width: 400px;">
+            <div class="card-header">
+                <div class="logo-icon-lg" style="background: rgba(99, 102, 241, 0.1); color: var(--primary);">
+                    <i data-lucide="lock" style="width: 32px; height: 32px;"></i>
+                </div>
+                <h1 style="font-size: 1.5rem;">Private Room</h1>
+                <p>This room requires a 6-digit access code.</p>
+            </div>
+
+            <div style="margin: 20px 0;">
+                <input type="text" id="room-pin-input" placeholder="000000" maxlength="6" 
+                    style="width: 100%; text-align: center; font-size: 2rem; letter-spacing: 8px; font-family: monospace; padding: 15px; border-radius: 12px; border: 2px solid var(--border); background: var(--surface); color: var(--text); outline: none; transition: border-color 0.2s;">
+                <p id="room-pin-error" style="color: var(--danger); font-size: 0.85rem; text-align: center; margin-top: 10px; display: none;">Invalid PIN. Please try again.</p>
+            </div>
+
+            <button id="join-room-btn" class="btn-gradient-lg" style="width: 100%; justify-content: center;">
+                Unlock Room
+            </button>
         </div>
     </div>
 

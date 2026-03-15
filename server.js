@@ -22,6 +22,7 @@ function isOk(val, type) {
 
 function validateJoin(data) {
     if (!isOk(data?.roomId, 'string') || data.roomId.length > MAX_ROOM_ID) return false;
+    if (data.roomCode !== undefined && (!isOk(data.roomCode, 'string') || data.roomCode.length !== 6)) return false;
     // Username is verified via Auth Middleware now
     return true;
 }
@@ -150,7 +151,7 @@ io.on('connection', (socket) => {
             console.log(`[Ignored] Invalid join-room from ${socket.id}`);
             return;
         }
-        const { roomId } = data;
+        const { roomId, roomCode } = data;
 
         // Step 7: Identity Source Switch
         // Securely retrieve username from Auth Middleware
@@ -162,6 +163,24 @@ io.on('connection', (socket) => {
         if (isNewRoom && Object.keys(rooms).length >= MAX_ROOMS) {
             console.log(`[Limit] MAX_ROOMS reached, ignoring new room`);
             return socket.emit('error', { message: 'Server busy, try later.' });
+        }
+
+        if (!isNewRoom) {
+             const room = rooms[roomId];
+             const isHost = room.hostUserId === user.id;
+             const isAllowed = room.allowedUsers.has(user.id);
+
+             if (!isHost && !isAllowed) {
+                 if (!roomCode) {
+                     // Ask for PIN
+                     return socket.emit('room-access-required');
+                 } else if (roomCode !== room.roomCode) {
+                     // Deny
+                     return socket.emit('room-access-denied');
+                 }
+                 // Correct code, add to allowed list
+                 room.allowedUsers.add(user.id);
+             }
         }
 
         // User cap check
@@ -177,8 +196,11 @@ io.on('connection', (socket) => {
         socket.data.username = username; // Persist for legacy compatibility in other events
         socket.data.roomId = roomId;
 
-        if (!rooms[roomId]) {
+        if (isNewRoom) {
+            const newRoomCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit code
             rooms[roomId] = {
+                roomCode: newRoomCode,
+                allowedUsers: new Set([user.id]),
                 videoId: null,
                 isPlaying: false,
                 timestamp: 0,
@@ -194,8 +216,14 @@ io.on('connection', (socket) => {
         }
 
         const userCount = io.sockets.adapter.rooms.get(roomId)?.size || 0;
+        
+        // We only send the roomCode back if it's the host. Other viewers don't need it.
+        const isHost = rooms[roomId].hostUserId === user.id;
+
         socket.emit('room-state', {
             ...rooms[roomId],
+            roomCode: isHost ? rooms[roomId].roomCode : undefined,
+            allowedUsers: undefined, // Don't leak user IDs
             userCount
         });
 

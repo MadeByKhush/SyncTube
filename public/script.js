@@ -226,6 +226,11 @@ async function init() {
         if (event === 'SIGNED_IN' && session?.user) {
             // Logic handled by handleUserSession (which closes modal)
             handleUserSession(session.user);
+        } else if (event === 'TOKEN_REFRESHED' && session) {
+            console.log('[Auth] Token refreshed, updating socket authn');
+            socket.auth.token = session.access_token;
+            // Optionally, we could force a reconnect here if the server validates strictly per-packet, 
+            // but socket.io only checks auth during handshake. Better to update the auth object for future reconnects.
         } else if (event === 'SIGNED_OUT') {
             window.location.reload();
         }
@@ -314,20 +319,65 @@ function connectSocket(token) {
     console.log("[Socket] Connecting with auth token...");
     socket.auth = { token };
     socket.connect();
-    joinRoom();
+    // joinRoom() will be called by the 'connect' event handler
 }
+
+let pendingRoomCode = null;
 
 function joinRoom() {
     console.log(`[Frontend] Joining Room: ${roomId}`);
     // Step 7 Pre-req: Remove username from payload (Server will use token)
-    socket.emit('join-room', { roomId });
+    const payload = { roomId };
+    if (pendingRoomCode) {
+        payload.roomCode = pendingRoomCode;
+    }
+    socket.emit('join-room', payload);
 }
+
+// --- Room Access Logic ---
+const roomAccessModal = document.getElementById('room-access-modal');
+const roomPinInput = document.getElementById('room-pin-input');
+const joinRoomBtn = document.getElementById('join-room-btn');
+const roomPinError = document.getElementById('room-pin-error');
+
+socket.on('room-access-required', () => {
+    roomAccessModal.classList.add('active');
+    roomPinInput.value = '';
+    roomPinError.style.display = 'none';
+    roomPinInput.focus();
+});
+
+socket.on('room-access-denied', () => {
+    roomAccessModal.classList.add('active');
+    roomPinError.style.display = 'block';
+    roomPinInput.value = '';
+    roomPinInput.focus();
+});
+
+joinRoomBtn.addEventListener('click', () => {
+    const code = roomPinInput.value.trim();
+    if (code.length === 6) {
+        pendingRoomCode = code;
+        roomPinError.style.display = 'none';
+        roomAccessModal.classList.remove('active');
+        joinRoom();
+    } else {
+        roomPinError.style.display = 'block';
+    }
+});
+
+roomPinInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') joinRoomBtn.click();
+});
 
 // --- Socket Events ---
 socket.on('connect', () => {
     connectionStatus.textContent = 'Connected';
     connectionStatus.classList.add('connected');
-    connectionStatus.classList.remove('connecting');
+    connectionStatus.classList.remove('Connecting');
+
+    // BUG FIX: Ensure we always rejoin the room when socket reconnects
+    joinRoom();
 
     // VC Auto-Recovery: re-join room and renegotiate WebRTC
     if (vcReconnecting && savedCallRoomId) {
@@ -364,10 +414,21 @@ socket.on('connect', () => {
 let sessionStartTime = null;
 
 socket.on('room-state', (state) => {
+    // Hide access modal if we successfully got room state
+    if (roomAccessModal) roomAccessModal.classList.remove('active');
+
     if (state.userCount > 1) unlockVideoCall();
     if (viewerCountEl) viewerCountEl.innerText = `👁 ${state.userCount} watching`;
     roomUserCount = state.userCount || 1;
     updateVCVisibility();
+
+    // Store room code to show in invite modal
+    if (state.roomCode) {
+        const inviteCodeInput = document.getElementById('invite-code-input');
+        if (inviteCodeInput) {
+            inviteCodeInput.value = state.roomCode;
+        }
+    }
 
     if (state.sessionStartTime) {
         sessionStartTime = state.sessionStartTime;
@@ -873,6 +934,8 @@ const inviteModal = document.getElementById('invite-modal');
 const closeInviteBtn = document.getElementById('close-invite-btn');
 const copyLinkBtn = document.getElementById('copy-link-btn');
 const inviteLinkInput = document.getElementById('invite-link-input');
+const copyCodeBtn = document.getElementById('copy-code-btn');
+const inviteCodeInput = document.getElementById('invite-code-input');
 
 function unlockVideoCall() {
     if (vcStartBtn.classList.contains('hidden')) {
@@ -907,6 +970,19 @@ copyLinkBtn.addEventListener('click', () => {
         setTimeout(() => { copyLinkBtn.textContent = originalText; copyLinkBtn.style.background = ''; }, 2000);
     });
 });
+
+if (copyCodeBtn && inviteCodeInput) {
+    copyCodeBtn.addEventListener('click', () => {
+        inviteCodeInput.select();
+        inviteCodeInput.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(inviteCodeInput.value).then(() => {
+            const originalText = copyCodeBtn.textContent;
+            copyCodeBtn.textContent = 'Copied!';
+            copyCodeBtn.style.background = '#22c55e';
+            setTimeout(() => { copyCodeBtn.textContent = originalText; copyCodeBtn.style.background = ''; }, 2000);
+        });
+    });
+}
 
 watchBtn.addEventListener('click', () => {
     const url = videoUrlInput.value;
