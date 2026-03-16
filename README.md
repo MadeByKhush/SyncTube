@@ -1,4 +1,4 @@
-# SyncTube
+# SyncVerse
 
 A real-time YouTube watch party application.
 

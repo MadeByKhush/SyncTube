@@ -963,7 +963,7 @@ socket.on('user-stop-typing', (data) => {
 
 chatInput.addEventListener('input', () => {
     if (!roomId) return;
-    const currentUser = username || localStorage.getItem('synctube_username');
+    const currentUser = username || localStorage.getItem('syncverse_username');
     if (!currentUser) return;
     
     clearTimeout(typingTimer);
@@ -992,7 +992,7 @@ chatInput.addEventListener('keypress', (e) => {
 
 function sendMessage() {
     const text = chatInput.value.trim();
-    if (!username) username = localStorage.getItem('synctube_username');
+    if (!username) username = localStorage.getItem('syncverse_username');
     if (!username) { showToast("Please enter your name first"); return; }
     if (!roomId) { showToast("Error: Not connected to a room"); return; }
     if (text) {
@@ -1026,7 +1026,7 @@ inviteBtn.addEventListener('click', () => {
     inviteLinkInput.value = window.location.href;
     inviteModal.classList.add('active');
     const url = encodeURIComponent(window.location.href);
-    const text = encodeURIComponent("Join my SyncTube watch party! 🎬");
+    const text = encodeURIComponent("Join my SyncVerse watch party! 🎬");
     document.getElementById('share-wa').href = `https://wa.me/?text=${text}%20${url}`;
     document.getElementById('share-fb').href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
     document.getElementById('share-x').href = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;

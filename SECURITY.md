@@ -1,6 +1,6 @@
 # Security Policy
 
-If you discover a security vulnerability in SyncTube, please report it responsibly.
+If you discover a security vulnerability in SyncVerse, please report it responsibly.
 
 Contact:
 Email:khushsharmacollage@gmail.com

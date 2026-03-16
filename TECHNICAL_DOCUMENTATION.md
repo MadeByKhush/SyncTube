@@ -8,10 +8,10 @@
 
 ## 1. High-Level System Overview
 
-**SyncTube** is a real-time collaborative watch-party application allowing distributed users to watch YouTube videos in perfect synchronization while video chatting.
+**SyncVerse** is a real-time collaborative watch-party application allowing distributed users to watch YouTube videos in perfect synchronization while video chatting.
 
 ### Problem Solved
-Friends want to watch movies/videos together remotely but struggle with manually syncing playback ("3, 2, 1, press play"). SyncTube automates this synchronization and integrates social features (chat, video calls) into a single browser interface.
+Friends want to watch movies/videos together remotely but struggle with manually syncing playback ("3, 2, 1, press play"). SyncVerse automates this synchronization and integrates social features (chat, video calls) into a single browser interface.
 
 ### User Journey
 1.  **Auth**: User signs in with Google (Supabase) to establish identity.
@@ -132,7 +132,7 @@ graph TD
 -   **Scaling**: State is local to the instance. Does not support multi-replica scaling without Redis adapter (currently not implemented).
 
 ### Client-Side State
--   **Session**: `localStorage` holds `synctube_session` (Supabase).
+-   **Session**: `localStorage` holds `syncverse_session` (Supabase).
 -   **Runtime**: `script.js` variables (`player`, `roomId`, `isMicEnabled`, `isHardSyncing`).
 -   **Recovery**: On page reload, application re-authenticates via Supabase session and re-joins socket using URL param `?room=XYZ`.
 

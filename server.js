@@ -378,7 +378,7 @@ io.on('connection', (socket) => {
     socket.on('call-user', ({ roomId }) => {
         // Broadcast "Incoming Call" to room (except sender)
         // In a real app with >2 users, you'd target a specific socketId.
-        // For SyncTube MVP (assumed small groups), we broadcast to room.
+        // For SyncVerse MVP (assumed small groups), we broadcast to room.
         console.log(`[VC] Call Request from ${socket.data.username}`);
         socket.to(roomId).emit('call-request', {
             callerId: socket.id,
