@@ -104,7 +104,9 @@ const io = new Server(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    pingInterval: 15000, // Ping every 15s to keep Render/Infrastructure alive
+    pingTimeout: 10000   // Timeout if no pong in 10s
 });
 
 // Step 6: Backend Auth Verification
@@ -134,6 +136,8 @@ io.use(async (socket, next) => {
 
 // In-memory Room State
 const rooms = {};
+const roomCleanupTimers = new Map();
+const ROOM_GRACE_PERIOD = 5 * 60 * 1000; // 5 minutes grace before deletion
 
 io.on('connection', (socket) => {
     console.log('socket connected', socket.id);
@@ -238,22 +242,44 @@ io.on('connection', (socket) => {
             });
         }
 
+        // Clear any pending cleanup timer for this room
+        if (roomCleanupTimers.has(roomId)) {
+            console.log(`[Server] Room ${roomId} re-occupied. Cancelling cleanup.`);
+            clearTimeout(roomCleanupTimers.get(roomId));
+            roomCleanupTimers.delete(roomId);
+        }
+
         broadcastUserCount(roomId);
+    });
+
+    // Application-level Heartbeat (redundant but safe for infrastructure)
+    socket.on('heartbeat', () => {
+        socket.emit('heartbeat-pong');
     });
 
     socket.on('disconnect', () => {
         console.log('socket disconnected', socket.id);
-        cleanupRateLimits(socket.id); // Cleanup rate limiter
+        cleanupRateLimits(socket.id); 
 
         const roomId = socket.data.roomId;
         if (roomId && rooms[roomId]) {
             broadcastUserCount(roomId);
 
-            // Clean up room if empty
+            // Clean up room if empty (with grace period)
             const count = io.sockets.adapter.rooms.get(roomId)?.size || 0;
             if (count === 0) {
-                console.log(`[Server] Room ${roomId} empty. Deleting.`);
-                delete rooms[roomId];
+                console.log(`[Server] Room ${roomId} empty. Starting ${ROOM_GRACE_PERIOD/60000}m grace period.`);
+                
+                // Clear any existing timer just in case
+                if (roomCleanupTimers.has(roomId)) clearTimeout(roomCleanupTimers.get(roomId));
+
+                const timer = setTimeout(() => {
+                    console.log(`[Server] Grace period expired for Room ${roomId}. Deleting.`);
+                    delete rooms[roomId];
+                    roomCleanupTimers.delete(roomId);
+                }, ROOM_GRACE_PERIOD);
+
+                roomCleanupTimers.set(roomId, timer);
             }
         }
     });

@@ -321,6 +321,24 @@ function connectSocket(token) {
     // joinRoom() will be called by the 'connect' event handler
 }
 
+socket.on('reconnect', (attempt) => {
+    console.log(`[Socket] Reconnected after ${attempt} attempts`);
+    showToast('Reconnected to session');
+});
+
+socket.on('reconnect_attempt', (attempt) => {
+    console.log(`[Socket] Reconnection attempt #${attempt}`);
+});
+
+socket.on('disconnect', (reason) => {
+    console.warn(`[Socket] Disconnected: ${reason}`);
+    if (reason === "io server disconnect") {
+        // the disconnection was initiated by the server, you need to reconnect manually
+        socket.connect();
+    }
+    // We don't clear UI here because we expect to reconnect
+});
+
 let pendingRoomCode = null;
 
 function joinRoom() {
@@ -1512,10 +1530,27 @@ function checkDevice() {
     }
 }
 
+// --- Heartbeat System (Keepalive for Infrastructure) ---
+let heartbeatInterval;
+
+function startHeartbeat() {
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    heartbeatInterval = setInterval(() => {
+        if (socket.connected) {
+            socket.emit('heartbeat');
+        }
+    }, 20000); // Pulse every 20s
+}
+
+socket.on('heartbeat-pong', () => {
+    // console.log('[Heartbeat] Pong received');
+});
+
 // Initial Check & Launch
 if (checkDevice()) {
     appInitialized = true;
     init();
+    startHeartbeat();
 } else {
     // If mobile start, do NOT init app (no socket, no auth)
     console.log('[Desktop Guard] Mobile device detected. App prevented.');
