@@ -23,6 +23,7 @@ function isOk(val, type) {
 function validateJoin(data) {
     if (!isOk(data?.roomId, 'string') || data.roomId.length > MAX_ROOM_ID) return false;
     if (data.roomCode !== undefined && (!isOk(data.roomCode, 'string') || data.roomCode.length !== 6)) return false;
+    if (data.isHost !== undefined && typeof data.isHost !== 'boolean') return false;
     // Username is verified via Auth Middleware now
     return true;
 }
@@ -155,7 +156,7 @@ io.on('connection', (socket) => {
             console.log(`[Ignored] Invalid join-room from ${socket.id}`);
             return;
         }
-        const { roomId, roomCode } = data;
+        const { roomId, roomCode, isHost: clientClaimsHost } = data;
 
         // Step 7: Identity Source Switch
         // Securely retrieve username from Auth Middleware
@@ -173,6 +174,17 @@ io.on('connection', (socket) => {
 
         if (!isNewRoom) {
              const room = rooms[roomId];
+             
+             // If reconstructed room had no host (viewer connected first), and the host now reconnects
+             if (!room.hostUserId && clientClaimsHost) {
+                 room.hostUserId = user.id;
+                 room.hostSocketId = socket.id;
+                 room.allowedUsers[user.id] = true;
+             } else if (room.hostUserId === user.id) {
+                 room.hostSocketId = socket.id;
+                 room.allowedUsers[user.id] = true;
+             }
+
              const isHost = room.hostUserId === user.id;
              const isAllowed = room.allowedUsers[user.id];
 
@@ -205,7 +217,13 @@ io.on('connection', (socket) => {
 
         if (isNewRoom) {
             isFirstJoin = true;
-            const newRoomCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit code
+            // Identify if this is a fresh room, or a viewer reconstructing a lost room
+            const isReconstructing = !!(roomCode && roomCode.length === 6);
+            const newRoomCode = isReconstructing ? roomCode : Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Only assign host if they explicitly claim it, or if it's a brand new room
+            const assignHost = !isReconstructing || clientClaimsHost;
+
             rooms[roomId] = {
                 roomCode: newRoomCode,
                 allowedUsers: { [user.id]: true },
@@ -214,13 +232,13 @@ io.on('connection', (socket) => {
                 timestamp: 0,
                 lastUpdate: Date.now(),
                 sessionStartTime: Date.now(),
-                hostSocketId: socket.id,
-                hostUserId: socket.data.user.id // Persist host identity across reconnects
+                hostSocketId: assignHost ? socket.id : null,
+                hostUserId: assignHost ? user.id : null
             };
+            if (isReconstructing && !assignHost) {
+                console.log(`[Server] Room ${roomId} reconstructed by viewer. Awaiting host.`);
+            }
             stats.roomsCreated++;
-        } else if (rooms[roomId].hostUserId && rooms[roomId].hostUserId === socket.data.user.id) {
-            // Host rejoined with a new socket — update hostSocketId
-            rooms[roomId].hostSocketId = socket.id;
         }
 
         const userCount = io.sockets.adapter.rooms.get(roomId)?.size || 0;

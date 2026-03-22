@@ -343,10 +343,18 @@ let pendingRoomCode = null;
 
 function joinRoom() {
     console.log(`[Frontend] Joining Room: ${roomId}`);
-    // Step 7 Pre-req: Remove username from payload (Server will use token)
-    const payload = { roomId };
+    const savedCode = sessionStorage.getItem(`syncverse_roomCode_${roomId}`);
+    const isHost = sessionStorage.getItem(`syncverse_isHost_${roomId}`) === 'true';
+
+    const payload = { 
+        roomId,
+        isHost
+    };
+
     if (pendingRoomCode) {
         payload.roomCode = pendingRoomCode;
+    } else if (savedCode) {
+        payload.roomCode = savedCode;
     }
     socket.emit('join-room', payload);
 }
@@ -375,6 +383,7 @@ joinRoomBtn.addEventListener('click', () => {
     const code = roomPinInput.value.trim();
     if (code.length === 6) {
         pendingRoomCode = code;
+        sessionStorage.setItem(`syncverse_roomCode_${roomId}`, code);
         roomPinError.style.display = 'none';
         roomAccessModal.classList.remove('active');
         joinRoom();
@@ -447,6 +456,8 @@ socket.on('room-state', (state) => {
         if (inviteCodeInput) {
             inviteCodeInput.value = state.roomCode;
         }
+        sessionStorage.setItem(`syncverse_isHost_${roomId}`, 'true');
+        sessionStorage.setItem(`syncverse_roomCode_${roomId}`, state.roomCode);
     }
 
     if (state.sessionStartTime) {
@@ -1241,6 +1252,52 @@ socket.on('vc-reconnect', async ({ id }) => {
     }, 120000);
 });
 
+function triggerVCRenewal() {
+    if (vcReconnecting || !isCallActive) return;
+    vcReconnecting = true;
+    savedCallRoomId = roomId;
+    showReconnectingOverlay(true);
+    
+    // If socket is still connected, we can renegotiate WebRTC immediately
+    // without waiting for a socket 'connect' event.
+    if (socket.connected) {
+        console.log('[VC Recovery] Socket connected. Renegotiating immediately...');
+        socket.emit('vc-reconnect', { roomId: savedCallRoomId });
+        setTimeout(async () => {
+            if (!vcReconnecting) return;
+            try {
+                if (peerConnection) { peerConnection.close(); peerConnection = null; }
+                if (!localStream || localStream.getTracks().every(t => t.readyState === 'ended')) {
+                    await startLocalStream();
+                }
+                createPeerConnection(null); // recursive but protected by vcReconnecting flag
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                socket.emit('vc-offer', { offer, roomId: savedCallRoomId });
+                console.log('[VC Recovery] Re-offer sent');
+            } catch (err) {
+                console.error('[VC Recovery] Failed:', err);
+                vcReconnecting = false;
+                savedCallRoomId = null;
+                showReconnectingOverlay(false);
+                endCall();
+            }
+        }, 500);
+    }
+
+    vcReconnectTimeout = setTimeout(() => {
+        if (vcReconnecting) {
+            console.log('[VC Recovery] Timeout — ending call');
+            vcReconnecting = false;
+            savedCallRoomId = null;
+            showReconnectingOverlay(false);
+            endCall();
+            showToast('Call lost — reconnection timed out');
+        }
+    }, 120000);
+}
+
 function createPeerConnection(targetId) {
     if (peerConnection) peerConnection.close();
     peerConnection = new RTCPeerConnection(rtcConfig);
@@ -1250,26 +1307,22 @@ function createPeerConnection(targetId) {
     peerConnection.ontrack = (event) => {
         remoteVideo.srcObject = event.streams[0];
     };
+    
+    peerConnection.oniceconnectionstatechange = () => {
+        if (!peerConnection) return;
+        const state = peerConnection.iceConnectionState;
+        console.log('[VC] ICE Connection state:', state);
+        if (state === 'disconnected' || state === 'failed') {
+            triggerVCRenewal();
+        }
+    };
+
     peerConnection.onconnectionstatechange = () => {
         if (!peerConnection) return;
         const state = peerConnection.connectionState;
         console.log('[VC] Connection state:', state);
         if (state === 'disconnected' || state === 'failed') {
-            if (!vcReconnecting && isCallActive) {
-                vcReconnecting = true;
-                savedCallRoomId = roomId;
-                showReconnectingOverlay(true);
-                vcReconnectTimeout = setTimeout(() => {
-                    if (vcReconnecting) {
-                        console.log('[VC Recovery] Timeout — ending call');
-                        vcReconnecting = false;
-                        savedCallRoomId = null;
-                        showReconnectingOverlay(false);
-                        endCall();
-                        showToast('Call lost — reconnection timed out');
-                    }
-                }, 120000);
-            }
+            triggerVCRenewal();
         }
         if (state === 'connected') {
             if (vcReconnecting) {
@@ -1539,6 +1592,7 @@ function startHeartbeat() {
         if (socket.connected) {
             socket.emit('heartbeat');
         }
+        fetch('/health').catch(() => {});
     }, 20000); // Pulse every 20s
 }
 
@@ -1629,6 +1683,8 @@ document.addEventListener('click', (e) => {
 // Logout
 if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
+        sessionStorage.removeItem(`syncverse_roomCode_${roomId}`);
+        sessionStorage.removeItem(`syncverse_isHost_${roomId}`);
         await supabase.auth.signOut();
         window.location.reload();
     });
