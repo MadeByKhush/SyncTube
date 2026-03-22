@@ -1649,21 +1649,32 @@ iframe {
     padding: 8px 0;
 }
 
-#copy-link-btn {
-    background: #7d2ae8;
-    color: white;
+#invite-code-input {
+    flex: 1;
     border: none;
-    padding: 8px 24px;
-    border-radius: 99px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: background 0.2s;
+    background: transparent;
+    outline: none;
+    width: 100%;
+    padding: 8px 0;
+    font-family: monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--text-main);
+    text-align: center;
 }
 
-#copy-link-btn:hover {
-    background: #6d28d9;
+.copy-btn-unified {
+    background: white;
+    border: 1px solid var(--border-subtle);
+    padding: 6px 16px;
+    border-radius: 99px;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-main);
 }
+
+
 
 /* Close Button (Text) */
 .close-text-btn {

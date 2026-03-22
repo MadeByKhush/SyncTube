@@ -1053,13 +1053,18 @@ function unlockVideoCall() {
 
 inviteBtn.addEventListener('click', () => {
     inviteLinkInput.value = window.location.href;
+    const currentCode = inviteCodeInput.value || "------"; // Retrieve code
     inviteModal.classList.add('active');
-    const url = encodeURIComponent(window.location.href);
-    const text = encodeURIComponent("Join my SyncVerse watch party! 🎬");
-    document.getElementById('share-wa').href = `https://wa.me/?text=${text}%20${url}`;
-    document.getElementById('share-fb').href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
-    document.getElementById('share-x').href = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
-    document.getElementById('share-email').href = `mailto:?subject=${text}&body=${url}`;
+    
+    const url = window.location.href;
+    const textBlob = `Join my SyncVerse watch party! 🎬\nRoom Link: ${url}\nRoom Code: ${currentCode}\n\n`;
+    const encText = encodeURIComponent(textBlob);
+    const encUrl = encodeURIComponent(url);
+
+    document.getElementById('share-wa').href = `https://wa.me/?text=${encText}`;
+    document.getElementById('share-fb').href = `https://www.facebook.com/sharer/sharer.php?u=${encUrl}`;
+    document.getElementById('share-x').href = `https://twitter.com/intent/tweet?text=${encText}`;
+    document.getElementById('share-email').href = `mailto:?subject=Join my Watch Party&body=${encText}`;
 });
 
 closeInviteBtn.addEventListener('click', () => inviteModal.classList.remove('active'));
